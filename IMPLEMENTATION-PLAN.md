@@ -4,6 +4,17 @@
 
 This plan decomposes the MVP into tasks organized by product feature. Dependencies form a directed acyclic graph (DAG): an implementation task may start only when every task in its **Blocked by** column is complete and integrated.
 
+### Execution status
+
+| Task | Status | Note |
+| --- | --- | --- |
+| F01 | Complete | Workspace/toolchain verified on Node.js 24.18.0 and pnpm 11.15.1 |
+| F02 | Ready, not started | Held at the user's requested execution boundary |
+| F03 | Ready, not started | Held at the user's requested execution boundary |
+| F04 | Ready, not started | Held at the user's requested execution boundary |
+
+All other tasks remain blocked by the DAG.
+
 The **Blocks** column is the reverse edge list. `Blocked by` is the source of truth if the plan changes; both columns must be updated together.
 
 Tasks are intended to produce a tested, usable increment rather than one horizontal layer. A task may modify more than one component when that is necessary to complete its behavior, but it has one owning feature and one primary agent.

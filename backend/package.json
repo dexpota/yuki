@@ -1,0 +1,11 @@
+{
+  "name": "@yuki/backend",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "test": "vitest run"
+  }
+}
