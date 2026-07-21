@@ -5,9 +5,18 @@
   "type": "module",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
+    "migrate": "node dist/platform/database/migrate-main.js up",
+    "migrate:down": "node dist/platform/database/migrate-main.js down",
     "start:api": "node dist/api-main.js",
     "start:worker": "node dist/worker-main.js",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "kysely": "0.28.8",
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/pg": "8.15.5"
   }
 }
