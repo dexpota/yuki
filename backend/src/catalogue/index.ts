@@ -1,4 +1,10 @@
 export {
+  type CatalogueFeature,
+  type CatalogueFeatureOptions,
+  type CatalogueIdentityBoundary,
+  registerCatalogueFeature,
+} from './feature.js';
+export {
   insertDraftAsset,
   insertDraftVersion,
   insertModel,
@@ -22,3 +28,18 @@ export type {
   CatalogueSchema,
   CatalogueTagTable,
 } from './schema.js';
+export {
+  type CatalogueAssetInput,
+  CatalogueConflictError,
+  type CatalogueDeletionPolicy,
+  CatalogueNotFoundError,
+  CatalogueService,
+  type CatalogueServiceOptions,
+  type CatalogueVersionInput,
+  type CollectionRecord,
+  type CreateModelInput,
+  createCatalogueDeletionPolicy,
+  type DeletedAssetReference,
+  type ModelDetail,
+  type UpdateModelInput,
+} from './service.js';
