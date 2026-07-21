@@ -2,6 +2,7 @@ import { pathToFileURL } from 'node:url';
 
 import { sql } from 'kysely';
 
+import { type CatalogueDatabaseSchema, registerCatalogueFeature } from './catalogue/index.js';
 import {
   createIdentityCsrfTokenSource,
   type IdentityDatabaseSchema,
@@ -9,6 +10,13 @@ import {
   readIdentityKeys,
   registerIdentityFeature,
 } from './identity/index.js';
+import {
+  type ImportDatabaseSchema,
+  type LocalImportConfiguration,
+  LocalImportService,
+  readLocalImportConfiguration,
+  registerLocalImportFeature,
+} from './importing/index.js';
 import {
   type ApiConfiguration,
   ConfigurationError,
@@ -30,6 +38,7 @@ import {
   installHttpObservability,
   type Logger,
 } from './platform/observability/index.js';
+import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 
 export const apiArtifact = 'backend-api';
 
@@ -37,13 +46,15 @@ export interface ApiCompositionConfiguration extends ApiConfiguration {
   readonly database: DatabaseConfiguration;
   readonly identityKeys: IdentityKeys;
   readonly allowedOrigins: readonly string[];
+  readonly localImport: LocalImportConfiguration;
 }
 
+export type ApiDatabaseSchema = IdentityDatabaseSchema & ImportDatabaseSchema;
+
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
-  readonly createDatabase?: (
-    configuration: DatabaseConfiguration,
-  ) => Database<IdentityDatabaseSchema>;
-  readonly closeDatabase?: (database: Database<IdentityDatabaseSchema>) => Promise<void>;
+  readonly createDatabase?: (configuration: DatabaseConfiguration) => Database<ApiDatabaseSchema>;
+  readonly closeDatabase?: (database: Database<ApiDatabaseSchema>) => Promise<void>;
+  readonly createBlobStore?: (root: string) => Promise<BlobStore>;
 }
 
 export async function runApi(dependencies: ApiEntrypointDependencies = {}): Promise<number> {
@@ -62,6 +73,9 @@ export async function runApi(dependencies: ApiEntrypointDependencies = {}): Prom
           ...(dependencies.closeDatabase === undefined
             ? {}
             : { closeDatabase: dependencies.closeDatabase }),
+          ...(dependencies.createBlobStore === undefined
+            ? {}
+            : { createBlobStore: dependencies.createBlobStore }),
         });
         try {
           if (configuration.environment !== 'test') {
@@ -86,13 +100,14 @@ export async function runApi(dependencies: ApiEntrypointDependencies = {}): Prom
 export async function createApiApplication(
   logger: Logger,
   health: HealthRegistry,
-  database: Database<IdentityDatabaseSchema>,
+  database: Database<ApiDatabaseSchema>,
   configuration: Pick<
     ApiCompositionConfiguration,
-    'identityKeys' | 'allowedOrigins' | 'environment'
+    'identityKeys' | 'allowedOrigins' | 'environment' | 'localImport'
   >,
   dependencies: {
-    readonly closeDatabase?: (database: Database<IdentityDatabaseSchema>) => Promise<void>;
+    readonly closeDatabase?: (database: Database<ApiDatabaseSchema>) => Promise<void>;
+    readonly createBlobStore?: (root: string) => Promise<BlobStore>;
   } = {},
 ) {
   const application = await createHttpApplication({
@@ -113,10 +128,28 @@ export async function createApiApplication(
       await sql`select 1`.execute(database);
     });
     const identity = registerIdentityFeature(application, {
-      database,
+      database: database as unknown as Database<IdentityDatabaseSchema>,
       csrfKey: configuration.identityKeys.csrfKey,
       masterKey: configuration.identityKeys.masterKey,
       cookie: { secure: configuration.environment === 'production' },
+    });
+    registerCatalogueFeature(application, {
+      database: database as unknown as Database<CatalogueDatabaseSchema>,
+      identity,
+    });
+    const blobStore = await (dependencies.createBlobStore ?? LocalBlobStore.create)(
+      configuration.localImport.storageRoot,
+    );
+    registerLocalImportFeature(application, {
+      identity,
+      service: new LocalImportService(
+        database as unknown as Database<ImportDatabaseSchema>,
+        blobStore,
+        {
+          maximumUploadBytes: configuration.localImport.maximumUploadBytes,
+          progressIntervalBytes: configuration.localImport.progressIntervalBytes,
+        },
+      ),
     });
     installHttpObservability(application, {
       service: apiArtifact,
@@ -159,16 +192,15 @@ export function readApiCompositionConfiguration(
     issues.push(error instanceof Error ? error.message : 'Identity keys are invalid');
   }
   const allowedOrigins = readAllowedOrigins(environment.YUKI_ALLOWED_ORIGINS, issues);
+  const localImport = readLocalImportConfiguration(environment, issues);
   if (issues.length > 0 || database === undefined || identityKeys === undefined) {
     throw new ConfigurationError(issues);
   }
-  return { ...api, database, identityKeys, allowedOrigins };
+  return { ...api, database, identityKeys, allowedOrigins, localImport };
 }
 
-function createIdentityDatabase(
-  configuration: DatabaseConfiguration,
-): Database<IdentityDatabaseSchema> {
-  return createDatabase<IdentityDatabaseSchema>(configuration);
+function createIdentityDatabase(configuration: DatabaseConfiguration): Database<ApiDatabaseSchema> {
+  return createDatabase<ApiDatabaseSchema>(configuration);
 }
 
 function readAllowedOrigins(value: string | undefined, issues: string[]): readonly string[] {

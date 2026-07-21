@@ -4,16 +4,20 @@ import { resolve } from 'node:path';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { createApiApplication, readApiCompositionConfiguration } from '../../src/api-main.js';
-import type { IdentityDatabaseSchema } from '../../src/identity/index.js';
+import {
+  type ApiDatabaseSchema,
+  createApiApplication,
+  readApiCompositionConfiguration,
+} from '../../src/api-main.js';
 import { closeDatabase, createDatabase, type Database } from '../../src/platform/database/index.js';
 import { HealthRegistry } from '../../src/platform/observability/health.js';
 import { createJsonLogger } from '../../src/platform/observability/logger.js';
+import type { BlobStore } from '../../src/platform/storage/index.js';
 
 describe('API composition configuration', () => {
   it('fails startup when identity, database, or allowed-origin configuration is missing', () => {
     expect(() => readApiCompositionConfiguration({ NODE_ENV: 'production' })).toThrow(
-      /YUKI_DATABASE_URL is required.*YUKI_CSRF_KEY is required.*YUKI_ALLOWED_ORIGINS is required/,
+      /YUKI_DATABASE_URL is required.*YUKI_CSRF_KEY is required.*YUKI_ALLOWED_ORIGINS is required.*YUKI_STORAGE_ROOT is required/,
     );
   });
 
@@ -31,16 +35,16 @@ const databaseUrl = process.env.YUKI_TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
 
 integration('identity API composition with PostgreSQL', () => {
-  let database: Database<IdentityDatabaseSchema>;
+  let database: Database<ApiDatabaseSchema>;
   const schemaName = `i01_composition_${process.pid}_${Date.now()}`;
 
   beforeAll(async () => {
-    const setup = createDatabase<IdentityDatabaseSchema>(configuration(databaseUrl as string));
+    const setup = createDatabase<ApiDatabaseSchema>(configuration(databaseUrl as string));
     await sql.raw(`create schema "${schemaName}"`).execute(setup);
     await closeDatabase(setup);
     const url = new URL(databaseUrl as string);
     url.searchParams.set('options', `-c search_path=${schemaName}`);
-    database = createDatabase<IdentityDatabaseSchema>(configuration(url.toString()));
+    database = createDatabase<ApiDatabaseSchema>(configuration(url.toString()));
     const migration = await readFile(
       resolve(import.meta.dirname, '../../migrations/0003_identity.up.sql'),
       'utf8',
@@ -49,7 +53,7 @@ integration('identity API composition with PostgreSQL', () => {
   });
 
   afterAll(async () => {
-    const cleanup = createDatabase<IdentityDatabaseSchema>(configuration(databaseUrl as string));
+    const cleanup = createDatabase<ApiDatabaseSchema>(configuration(databaseUrl as string));
     await sql.raw(`drop schema if exists "${schemaName}" cascade`).execute(cleanup);
     await closeDatabase(cleanup);
   });
@@ -62,12 +66,24 @@ integration('identity API composition with PostgreSQL', () => {
       health,
       database,
       configuration,
+      { createBlobStore: async () => ({}) as BlobStore },
     );
     health.setAcceptingWork(true);
 
     const readiness = await application.inject({ method: 'GET', url: '/health/ready' });
     expect(readiness.statusCode).toBe(200);
     expect(readiness.json().checks.database).toBe('up');
+
+    const catalogueDenied = await application.inject({
+      method: 'GET',
+      url: '/api/v1/catalogue/models/21000000-0000-4000-8000-000000000001',
+    });
+    const importDenied = await application.inject({
+      method: 'GET',
+      url: '/api/v1/imports/31000000-0000-4000-8000-000000000001',
+    });
+    expect(catalogueDenied.statusCode).toBe(401);
+    expect(importDenied.statusCode).toBe(401);
 
     const initial = await application.inject({ method: 'GET', url: '/api/v1/session' });
     expect(initial.statusCode).toBe(200);
@@ -118,6 +134,7 @@ function validEnvironment(): NodeJS.ProcessEnv {
     YUKI_CSRF_KEY: Buffer.alloc(32, 1).toString('base64'),
     YUKI_MASTER_KEY: Buffer.alloc(32, 2).toString('base64'),
     YUKI_ALLOWED_ORIGINS: 'https://yuki.local',
+    YUKI_STORAGE_ROOT: '/unused/storage',
   };
 }
 

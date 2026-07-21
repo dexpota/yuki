@@ -1,4 +1,8 @@
 export {
+  type LocalImportConfiguration,
+  readLocalImportConfiguration,
+} from './configuration.js';
+export {
   type ImportIdentityContract,
   type LocalImportFeatureOptions,
   registerLocalImportFeature,
@@ -23,3 +27,7 @@ export {
   localImportPayloadVersion,
   UploadLimitExceededError,
 } from './service.js';
+export {
+  type ProcessLocalImportOptions,
+  processNextLocalImportJob,
+} from './worker.js';

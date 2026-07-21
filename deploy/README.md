@@ -39,6 +39,11 @@ assets, and proxy state.
 | `YUKI_POSTGRES_DB` | `yuki` | Database name |
 | `YUKI_POSTGRES_USER` | `yuki` | Database role |
 | `YUKI_POSTGRES_PASSWORD` | `yuki-development-only` | Database password; change outside isolated local development |
+| `YUKI_STORAGE_ROOT` | `/data/yuki` | Dedicated local asset-storage root used by API and worker |
+| `YUKI_MAXIMUM_UPLOAD_BYTES` | `2147483648` | Maximum bytes accepted by one manual upload |
+| `YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES` | `1048576` | Uploaded bytes between durable progress updates |
+| `YUKI_IMPORT_POLL_INTERVAL_MS` | `1000` | Delay while the import-job queue is empty |
+| `YUKI_IMPORT_JOB_LEASE_MS` | `30000` | Lease duration for one claimed import job |
 
 The `postgres_data` and `storage_data` named volumes are the durable application
 state. `proxy_data` and `proxy_config` retain Caddy state. The `application` and

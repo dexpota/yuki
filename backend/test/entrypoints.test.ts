@@ -1,17 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { apiArtifact, runApi } from '../src/api-main.js';
-import type { IdentityDatabaseSchema } from '../src/identity/index.js';
+import { type ApiDatabaseSchema, apiArtifact, runApi } from '../src/api-main.js';
 import type { Database } from '../src/platform/database/index.js';
-import { runWorker, workerArtifact } from '../src/worker-main.js';
+import type { BlobStore } from '../src/platform/storage/index.js';
+import { runWorker, type WorkerDatabaseSchema, workerArtifact } from '../src/worker-main.js';
 
 describe('backend entry points', () => {
   it('starts and cleanly stops the API after a termination signal', async () => {
     const status: string[] = [];
     const exitCode = await runApi({
       environment: validApiEnvironment(),
-      createDatabase: () => ({}) as Database<IdentityDatabaseSchema>,
+      createDatabase: () => ({}) as Database<ApiDatabaseSchema>,
       closeDatabase: async () => {},
+      createBlobStore: async () => ({}) as BlobStore,
       waitForShutdown: async () => 'SIGTERM',
       writeStatus: (message) => status.push(message),
     });
@@ -27,7 +28,10 @@ describe('backend entry points', () => {
   it('starts and cleanly stops the worker after an interrupt signal', async () => {
     const status: string[] = [];
     const exitCode = await runWorker({
-      environment: { NODE_ENV: 'test' },
+      environment: validWorkerEnvironment(),
+      createDatabase: () => ({}) as Database<WorkerDatabaseSchema>,
+      closeDatabase: async () => {},
+      createBlobStore: async () => ({}) as BlobStore,
       waitForShutdown: async () => 'SIGINT',
       writeStatus: (message) => status.push(message),
     });
@@ -71,5 +75,14 @@ function validApiEnvironment(): NodeJS.ProcessEnv {
     YUKI_CSRF_KEY: Buffer.alloc(32, 1).toString('base64'),
     YUKI_MASTER_KEY: Buffer.alloc(32, 2).toString('base64'),
     YUKI_ALLOWED_ORIGINS: 'https://yuki.local',
+    YUKI_STORAGE_ROOT: '/unused/storage',
+  };
+}
+
+function validWorkerEnvironment(): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: 'test',
+    YUKI_DATABASE_URL: 'postgresql://unused/test',
+    YUKI_STORAGE_ROOT: '/unused/storage',
   };
 }
