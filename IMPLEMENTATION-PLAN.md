@@ -12,14 +12,21 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | F02 | Complete | Compose topology validated with a live PostgreSQL/proxy startup |
 | F03 | Complete | API and worker bootstrap validated through compiled process smoke tests |
 | F04 | Complete | React shell, routing, query provider, error boundary, tests, and production build verified |
-| F05 | Ready, not started | Released by F02 and F03; held for the next execution wave |
+| F05 | Complete | PostgreSQL/Kysely foundation passed 27 tests against PostgreSQL 17.5 |
 | F06 | Ready, not started | Released by F03; held for the next execution wave |
 | F08 | Ready, not started | Released by F03; held for the next execution wave |
 | F09 | Ready, not started | Released by F02 and F03; held for the next execution wave |
-| F10 | Ready, not started | Released by F02 and F03; held for the next execution wave |
-| M04 | Ready, not started | Released by F03; held for the next execution wave |
+| F10 | Complete | Versioned protocol and restricted container probe verified |
+| F07 | Ready, not started | Released by F05; held for the next execution wave |
+| M04 | Complete | Feasibility decision recorded in ADR-0001; M05 remains externally blocked |
 
 All tasks not listed above remain blocked by the DAG.
+
+### External blockers
+
+| ID | Condition | Blocks | Resolution |
+| --- | --- | --- | --- |
+| EXT-THANGS-01 | No documented, permitted public unauthenticated Thangs metadata/file-download contract is currently available | M05 and, transitively, M06 and O05 | Obtain an official supported API/contract or written authorization, or explicitly change the MVP requirement; see `docs/ADR-0001-thangs-public-import.md` |
 
 The **Blocks** column is the reverse edge list. `Blocked by` is the source of truth if the plan changes; both columns must be updated together.
 
