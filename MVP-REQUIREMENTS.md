@@ -12,7 +12,7 @@ The initial product is intended for personal use, but its data model and archite
 
 The user must be able to:
 
-1. Import a model from disk or from a public Thangs URL.
+1. Import a model manually from files or a ZIP archive.
 2. Store all files and metadata belonging to the model.
 3. Preview supported 3D files interactively in the browser.
 4. Organize and search a library containing thousands of models.
@@ -30,7 +30,6 @@ The user must be able to:
 - Single-user web application
 - Model catalogue and print history
 - Manual file and archive uploads
-- Public, unauthenticated Thangs imports
 - STL, 3MF, OBJ, STEP, and G-code assets
 - Simple interactive 3D previews
 - Tags, collections, favorites, and search
@@ -50,7 +49,7 @@ The user must be able to:
 - Arranging parts on a virtual print bed
 - Support painting, modifiers, or other slicer tools
 - Color and texture rendering
-- Authenticated imports from third-party model sites
+- Direct imports from third-party model sites, including Thangs
 - Automatic checks for upstream model updates
 - Browser extensions or bookmarklets
 - Multi-user accounts, roles, or collaboration
@@ -70,7 +69,7 @@ Required fields:
 - Name
 - Description
 - Creation and update timestamps
-- Import source: upload or Thangs
+- Import source: upload or Yuki export package
 - Original source URL, when applicable
 - Creator and license, when available
 - Tags and collections
@@ -152,16 +151,6 @@ It contains:
 - The application computes a checksum for every stored asset.
 - The application warns about exact duplicate files but allows the user to keep them.
 - Import and preview generation run as background jobs and expose progress and failure states.
-
-#### Thangs import
-
-- The user can submit a public Thangs model URL.
-- The application downloads the available model files without requiring a Thangs login.
-- The import records the source URL and any publicly available title, creator, description, license, images, and remote identifier.
-- The downloaded original files are stored locally or in the selected configured storage backend.
-- If a URL cannot be imported, the application reports a useful error and leaves no partially created visible model.
-- The MVP does not monitor Thangs for later changes.
-- Thangs import is considered releasable only after verifying that the chosen integration mechanism is technically and legally permitted. If public direct download cannot be supported reliably, manual upload remains available but the Thangs-import requirement is not considered complete.
 
 ### 5.2 Catalogue management
 
@@ -284,8 +273,8 @@ The application must clearly distinguish stale monitoring data from live data. D
 
 ### Import and catalogue a model
 
-1. The user uploads files/a ZIP or enters a public Thangs URL.
-2. The application imports the original files and available metadata.
+1. The user uploads files or a ZIP archive.
+2. The application imports the original files and user-supplied metadata.
 3. Background processing generates thumbnails and previews.
 4. The user reviews the model, adds tags, and assigns collections.
 5. The model becomes searchable in the library.
@@ -360,21 +349,20 @@ The MVP is complete when a user can, from a clean Docker Compose installation:
 
 1. Sign in and configure local storage.
 2. Import a multipart model from files or a ZIP archive.
-3. Import a downloadable public model from Thangs without authenticating to Thangs.
-4. View the model in the catalogue, tag it, search for it, and interact with its 3D preview.
-5. Add a second immutable version and retrieve the first version unchanged.
-6. Export the entire model and successfully re-import it with its relationships intact.
-7. Configure at least two OctoPrint printers.
-8. Upload a G-code asset and see a preview or an explicit unsupported-preview state.
-9. Run compatibility checks and prevent sending a known incompatible file.
-10. Queue jobs independently for both printers.
-11. Confirm and remotely start a compatible job.
-12. Monitor progress, temperatures, state, and webcam output when OctoPrint exposes them.
-13. Pause, resume, and cancel a print with appropriate confirmations.
-14. Receive completion or failure notification.
-15. Record the outcome, notes, and a photograph in the model's print history.
-16. Restart the application without losing models, versions, queues, or print history.
-17. Use all core catalogue and OctoPrint features with no internet or cloud dependency, except for the intentionally online Thangs import and optional external notifications/storage.
+3. View the model in the catalogue, tag it, search for it, and interact with its 3D preview.
+4. Add a second immutable version and retrieve the first version unchanged.
+5. Export the entire model and successfully re-import it with its relationships intact.
+6. Configure at least two OctoPrint printers.
+7. Upload a G-code asset and see a preview or an explicit unsupported-preview state.
+8. Run compatibility checks and prevent sending a known incompatible file.
+9. Queue jobs independently for both printers.
+10. Confirm and remotely start a compatible job.
+11. Monitor progress, temperatures, state, and webcam output when OctoPrint exposes them.
+12. Pause, resume, and cancel a print with appropriate confirmations.
+13. Receive completion or failure notification.
+14. Record the outcome, notes, and a photograph in the model's print history.
+15. Restart the application without losing models, versions, queues, or print history.
+16. Use all core catalogue and OctoPrint features with no internet or cloud dependency, except for optional external notifications/storage.
 
 ## 9. Decisions still needed before implementation
 
@@ -386,5 +374,4 @@ These decisions do not change the product direction, but they should be resolved
 4. The supported STEP-to-preview conversion approach and its deployment/licensing constraints.
 5. The precise G-code metadata rules that qualify as a hard incompatibility versus an overridable warning.
 6. The authentication behavior for trusted local-network installations.
-7. The Thangs integration mechanism and confirmation that it is permitted and stable enough for release.
-8. Whether deletion immediately removes stored files or uses a recoverable retention period.
+7. Whether deletion immediately removes stored files or uses a recoverable retention period.

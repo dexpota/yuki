@@ -80,7 +80,7 @@ backend/                one server artifact and image
     api-main.ts          HTTP composition root
     worker-main.ts       background-worker composition root
     catalogue/           models, versions, tags, search, previews, and export
-    importing/           uploads, archives, Thangs, staging, and import jobs
+    importing/           uploads, archives, staging, and import jobs
     printing/            printers, queues, compatibility, control, history, notification
     identity/            first-run setup, sign-in, sessions, and owner context
     settings/            installation and retention configuration
@@ -137,7 +137,7 @@ Workers claim durable jobs using PostgreSQL row locking (`FOR UPDATE SKIP LOCKED
 
 Work types include:
 
-- local and Thangs import;
+- local file and archive import;
 - archive inspection and extraction;
 - asset metadata extraction and checksum verification;
 - geometry/G-code preview and thumbnail generation;
@@ -207,7 +207,7 @@ Original upload archives are retained as assets with an `original_archive` role.
 - `ImportSession` tracks source, staging prefix, progress, warnings, failure reason, and eventual model ID.
 - `ExportJob` records the model snapshot, format version, generated object, expiry, and status.
 
-An imported model is assembled in staging and becomes catalogue-visible only in a final database transaction. A failed Thangs or archive import therefore leaves no partially visible model. Cleanup jobs remove abandoned staging objects.
+An imported model is assembled in staging and becomes catalogue-visible only in a final database transaction. A failed file or archive import therefore leaves no partially visible model. Cleanup jobs remove abandoned staging objects.
 
 The portable export contains `manifest.json` with a documented schema/version, every version and original asset, generated artifacts, user media, and print-history data. Paths are content-independent and checksums are included. Import validates the entire manifest and all hashes before publishing records. Secrets, internal storage keys, session data, and printer credentials are never exported.
 
@@ -283,15 +283,11 @@ The evaluator operates on an immutable G-code metadata snapshot and printer-prof
 5. Database rows and preview jobs are created. The original upload remains unchanged.
 6. The model is published atomically. Preview failure is recorded on the artifact but does not fail the model import.
 
-### 7.2 Thangs import
+### 7.2 Third-party imports after the MVP
 
-1. The API validates and canonicalizes a public Thangs URL.
-2. A feature-flagged `ModelSourceImporter` adapter retrieves public metadata and downloadable files using strict host allowlists, redirect limits, timeouts, and byte limits.
-3. Downloaded content enters the same quarantine and import pipeline as local uploads.
-4. Source attribution and the remote identifier are stored on the model and metadata snapshot.
-5. Any failure leaves the session report visible but publishes no model.
+Direct third-party site imports, including Thangs, are outside the MVP. The application does not fetch model-site pages or private endpoints. Users manually upload files or ZIP archives and may record source attribution as catalogue metadata.
 
-The adapter is an optional boundary, not embedded scraping logic. It ships enabled only after technical and legal validation; manual upload does not count as satisfying the Thangs acceptance criterion.
+The `ModelSourceImporter` extension point is retained for a future supported integration. Any such integration requires an official contract or written authorization and must feed downloaded content through the same quarantine and atomic-publication pipeline as local uploads.
 
 ### 7.3 Start and monitor a print
 
@@ -379,7 +375,7 @@ The default Compose project contains:
 - `postgres`: persistent database volume;
 - `storage`: persistent local asset volume; optional S3 configuration replaces asset writes, not PostgreSQL.
 
-Only the proxy publishes a host port. PostgreSQL and internal services remain on a private Compose network. OctoPrint and optional external notification destinations are the only necessary outbound targets during normal local operation. Thangs and S3 access are enabled only when those features are configured.
+Only the proxy publishes a host port. PostgreSQL and internal services remain on a private Compose network. OctoPrint and optional external notification/S3 destinations are the only necessary outbound targets during normal operation.
 
 Database migrations run as an explicit one-shot deployment step before new application containers become ready. Migrations must be backward-compatible across one rolling deployment boundary, although the default Compose upgrade may briefly stop the application.
 
@@ -428,15 +424,14 @@ Future multi-user support will additionally require tenant isolation, authorizat
 
 These items remain product or discovery decisions and must become ADRs before their affected feature is implemented:
 
-1. **Thangs integration:** permitted and stable public download mechanism, attribution rules, and feature-disable behavior.
-2. **STEP conversion:** exact Open Cascade-based tool, license, supported constructs, image size, and resource limits.
-3. **G-code policy:** normalized metadata schema and the rule table separating hard conflicts, warnings, and unknowns.
-4. **External notifications:** accept the recommended generic webhook or select email/Telegram and define secret/configuration behavior.
-5. **S3 compatibility target:** use MinIO for automated contract tests and name any additional real provider required for release certification.
-6. **Resource defaults:** maximum upload, archive member count, expanded archive size, compression ratio, processing time, and export retention.
-7. **Deletion policy:** recommended 30-day recoverable tombstone versus immediate purge.
-8. **Trusted-network authentication:** whether no-auth mode is shipped; authenticated mode remains the secure default.
+1. **STEP conversion:** exact Open Cascade-based tool, license, supported constructs, image size, and resource limits.
+2. **G-code policy:** normalized metadata schema and the rule table separating hard conflicts, warnings, and unknowns.
+3. **External notifications:** accept the recommended generic webhook or select email/Telegram and define secret/configuration behavior.
+4. **S3 compatibility target:** use MinIO for automated contract tests and name any additional real provider required for release certification.
+5. **Resource defaults:** maximum upload, archive member count, expanded archive size, compression ratio, processing time, and export retention.
+6. **Deletion policy:** recommended 30-day recoverable tombstone versus immediate purge.
+7. **Trusted-network authentication:** whether no-auth mode is shipped; authenticated mode remains the secure default.
 
 ## 17. Definition of architecture complete
 
-Before feature implementation begins, the team should add ADRs for the decisions in section 16, define the versioned export JSON schema, and create thin vertical spikes for STEP conversion, G-code compatibility extraction, Thangs download, and OctoPrint reconciliation. These are the highest-risk boundaries. The rest of the system should then be delivered as end-to-end slices—import, catalogue, version/export, printer queue, monitoring/history—rather than as disconnected technical layers.
+Before the affected features begin, the team should add ADRs for the decisions in section 16, define the versioned export JSON schema, and create thin vertical spikes for STEP conversion, G-code compatibility extraction, and OctoPrint reconciliation. These are the highest-risk boundaries. The rest of the system should then be delivered as end-to-end slices—import, catalogue, version/export, printer queue, monitoring/history—rather than as disconnected technical layers.

@@ -1,17 +1,17 @@
 # ADR-0001: Public unauthenticated Thangs import
 
-- Status: Blocked
+- Status: Accepted — integration deferred beyond the MVP
 - Decision date: 2026-07-21
 - Task: M04
-- Affects: M05, M06, release acceptance criterion 3
+- Affects: post-MVP M05 only
 
 ## Context
 
-The MVP requires a user to submit a public Thangs model URL and have Yuki import
-the downloadable original files and public metadata without authenticating to
-Thangs. The integration must be both technically stable and permitted. Manual
-upload remains useful when an online import fails, but it does not satisfy this
-release requirement.
+The original MVP draft required a user to submit a public Thangs model URL and
+have Yuki import the downloadable original files and public metadata without
+authenticating to Thangs. The integration had to be both technically stable and
+permitted. After this spike, the product decision was changed: manual file and
+ZIP import is the MVP path and direct third-party imports are deferred.
 
 This spike considered only interfaces and policies published by Thangs. It did
 not inspect browser traffic, discover private endpoints, simulate credentials,
@@ -24,9 +24,9 @@ Do not implement or release M05 against the currently observable Thangs website.
 No stable, permitted, public unauthenticated metadata and file-download mechanism
 could be established from Thangs' published materials as of the decision date.
 
-M05 remains blocked. The Thangs importer must default to disabled and must not be
-presented as available in the UI. Manual upload may still ship, but the MVP is not
-complete under the current requirements while acceptance criterion 3 remains.
+M05 is removed from the MVP DAG. The Thangs importer must not be presented as
+available in the MVP UI. Manual file and ZIP upload now satisfies the revised
+MVP import scope.
 
 The decision can be revisited only when at least one of these is obtained:
 
@@ -78,8 +78,7 @@ therefore out of scope even as a temporary adapter.
 
 ## Required behavior while blocked
 
-- The Thangs importer feature flag defaults to `false` in every environment.
-- No deployment option may enable a non-existent scraper implementation.
+- No Thangs importer or enabling deployment option is shipped in the MVP.
 - A pasted Thangs URL may be recognized only to offer the ordinary manual-upload
   guidance; the application must not fetch the page or files server-side.
 - User-facing copy must say that direct Thangs import is unavailable, without
@@ -114,7 +113,6 @@ following before release:
 
 The product avoids shipping a fragile scraper or relying on permission inferred
 from public visibility. Local file and ZIP imports can continue independently.
-However, M05 cannot proceed to releasable implementation, M06 cannot claim a
-working Thangs path, and the release cannot satisfy acceptance criterion 3 unless
-the requirements are explicitly changed or Thangs supplies the necessary
-permission and supported interface.
+M05 remains post-MVP work unless Thangs supplies the necessary permission and a
+supported interface. The revised MVP and M06 cover manual file and ZIP import and
+have no Thangs release gate.
