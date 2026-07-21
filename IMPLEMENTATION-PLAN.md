@@ -15,11 +15,17 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | F05 | Complete | PostgreSQL/Kysely foundation passed 27 tests against PostgreSQL 17.5 |
 | F06 | Complete | HTTP validation, errors, OpenAPI, CSRF, streaming, and SSE verified |
 | F08 | Complete | Local BlobStore and reference-aware lifecycle passed filesystem and PostgreSQL tests |
-| F09 | Ready, not started | Released by F02 and F03; held for the next execution wave |
+| F09 | Complete | Structured logging, metrics, health, and authenticated diagnostics verified |
 | F10 | Complete | Versioned protocol and restricted container probe verified |
 | F07 | Complete | Durable jobs passed concurrency, lease, retry, recovery, and dead-letter tests |
-| I01 | Ready, not started | Released by F05 and F06; held for the next execution wave |
-| C01 | Ready, not started | Released by F05 and F08; held for the next execution wave |
+| I01 | Complete | Identity and runnable API composition passed PostgreSQL authentication/CSRF tests |
+| C01 | Complete | Catalogue invariants and migrations 0001–0004 passed full PostgreSQL tests |
+| I02 | Ready, not started | Released by F04 and I01; held for the next execution wave |
+| C02 | Ready, not started | Released by F06, I01, and C01; held for the next execution wave |
+| C03 | Ready, not started | Released by F06 and C01; held for the next execution wave |
+| M01 | Ready, not started | Released by F06–F08, I01, and C01; held for the next execution wave |
+| P01 | Ready, not started | Released by F05, F06, and I01; held for the next execution wave |
+| S01 | Ready, not started | Released by F04, F06, and I01; held for the next execution wave |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 
 All tasks not listed above remain blocked by the DAG.
@@ -68,14 +74,14 @@ The headings below are planning groups, not a request to create another director
 
 | ID | Task and completion condition | Components | Blocked by | Blocks |
 | --- | --- | --- | --- | --- |
-| I01 | Implement first-user setup, Argon2id login, sessions, owner context, CSRF enforcement, and master-key-backed secret encryption. API integration tests cover setup and session expiry. | BE, DB | F05, F06 | I02, C02, M01, P01, P06, S01, O02 |
+| I01 | Implement first-user setup, Argon2id login, sessions, owner context, CSRF enforcement, and master-key-backed secret encryption. API integration tests cover setup and session expiry. | BE, DB | F05, F06 | I02, C01, C02, M01, P01, P06, S01, O02 |
 | I02 | Implement first-run setup, sign-in, sign-out, and expired-session UI flows. | FE | F04, I01 | O01, O05 |
 
 ### 2.3 Catalogue
 
 | ID | Task and completion condition | Components | Blocked by | Blocks |
 | --- | --- | --- | --- | --- |
-| C01 | Add catalogue-owned schema and persistence for models, immutable versions, assets, stored objects, tags, collections, favorites, and current version. Constraints enforce invariants. | BE, DB | F05, F08 | C02, C03, M01, C05, C06, P04 |
+| C01 | Add catalogue-owned schema and persistence for models, immutable versions, assets, stored objects, tags, collections, favorites, and current version. Constraints enforce invariants. | BE, DB | F05, F08, I01 | C02, C03, M01, C05, C06, P04 |
 | C02 | Implement authenticated model CRUD, tag/collection/favorite management, immutable version creation, current-version restoration, and deletion-policy hooks. | BE, DB | F06, I01, C01 | C04, C06, P09 |
 | C03 | Implement indexed search, filtering, deterministic cursor pagination, sorting, and print-count/last-printed projections. Query plans pass the reference-dataset budget. | BE, DB | F06, C01 | C04, O04 |
 | C04 | Implement catalogue browse, search/filter/sort, model details/editing, tags, collections, favorites, and version-history UI. | FE | F04, C02, C03 | O04, O05 |
@@ -164,15 +170,16 @@ A topological sort currently produces the following dependency waves. These show
 0:  F01
 1:  F02 F03 F04
 2:  F05 F06 F08 F09 F10 M04
-3:  F07 I01 C01
-4:  I02 C02 C03 M01 P01 S01
-5:  C04 M02 M03 P02 P03 S02 O01
-6:  C05 C06 M06 P04
-7:  P05 O03
-8:  P06 P08
-9:  P07 P09 N01
-10: P10 N02 N03 O02 O04
-11: O05
+3:  F07 I01
+4:  I02 C01 P01 S01
+5:  C02 C03 M01 P02 S02 O01
+6:  C04 M02 M03 P03
+7:  C05 C06 M06 P04
+8:  P05 O03
+9:  P06 P08
+10: P07 P09 N01
+11: P10 N02 N03 O02 O04
+12: O05
 ```
 
 ## 4. Agent assignment contract
