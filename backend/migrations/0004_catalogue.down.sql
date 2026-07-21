@@ -1,0 +1,15 @@
+drop table if exists catalogue_model_collections;
+drop table if exists catalogue_model_tags;
+drop table if exists catalogue_collections;
+drop table if exists catalogue_tags;
+alter table if exists catalogue_models drop constraint if exists catalogue_models_cover_asset_fk;
+alter table if exists catalogue_models drop constraint if exists catalogue_models_current_version_fk;
+drop trigger if exists catalogue_models_published_current_version on catalogue_models;
+drop function if exists catalogue_require_published_current_version();
+drop trigger if exists catalogue_assets_guard on catalogue_assets;
+drop function if exists catalogue_guard_asset();
+drop trigger if exists catalogue_model_versions_immutable on catalogue_model_versions;
+drop function if exists catalogue_guard_version_immutability();
+drop table if exists catalogue_assets;
+drop table if exists catalogue_model_versions;
+drop table if exists catalogue_models;
