@@ -1,0 +1,79 @@
+name: yuki
+
+services:
+  proxy:
+    image: caddy:2.10.0-alpine
+    restart: unless-stopped
+    ports:
+      - "${YUKI_HTTP_BIND_ADDRESS:-127.0.0.1}:${YUKI_HTTP_PORT:-8080}:8080"
+    networks:
+      - edge
+      - application
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - type: volume
+        source: proxy_data
+        target: /data
+      - type: volume
+        source: proxy_config
+        target: /config
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # The official image marks the Caddy binary with this file capability.
+    # Keep it in the bounding set even though development HTTP uses port 8080.
+    cap_add:
+      - NET_BIND_SERVICE
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+
+  postgres:
+    image: postgres:17.5-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${YUKI_POSTGRES_DB:-yuki}
+      POSTGRES_USER: ${YUKI_POSTGRES_USER:-yuki}
+      POSTGRES_PASSWORD: ${YUKI_POSTGRES_PASSWORD:-yuki-development-only}
+    networks:
+      - data
+    volumes:
+      - type: volume
+        source: postgres_data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready --username=$${POSTGRES_USER} --dbname=$${POSTGRES_DB}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+    shm_size: 256mb
+
+networks:
+  edge:
+  application:
+    internal: true
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  storage_data:
+  proxy_data:
+  proxy_config:

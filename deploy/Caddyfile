@@ -1,0 +1,17 @@
+{
+	admin off
+	auto_https off
+}
+
+:8080 {
+	log {
+		output stdout
+		format json
+	}
+
+	respond /healthz 200
+
+	# F03 and F04 replace this response with the API and static-web routes once
+	# those artifacts expose runnable development containers.
+	respond "Yuki development infrastructure is ready" 200
+}
