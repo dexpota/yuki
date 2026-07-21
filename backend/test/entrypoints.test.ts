@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
 import { apiArtifact, runApi } from '../src/api-main.js';
+import type { IdentityDatabaseSchema } from '../src/identity/index.js';
+import type { Database } from '../src/platform/database/index.js';
 import { runWorker, workerArtifact } from '../src/worker-main.js';
 
 describe('backend entry points', () => {
   it('starts and cleanly stops the API after a termination signal', async () => {
     const status: string[] = [];
     const exitCode = await runApi({
-      environment: { NODE_ENV: 'test' },
+      environment: validApiEnvironment(),
+      createDatabase: () => ({}) as Database<IdentityDatabaseSchema>,
+      closeDatabase: async () => {},
       waitForShutdown: async () => 'SIGTERM',
       writeStatus: (message) => status.push(message),
     });
@@ -59,3 +63,13 @@ describe('backend entry points', () => {
     expect([apiArtifact, workerArtifact]).toEqual(['backend-api', 'backend-worker']);
   });
 });
+
+function validApiEnvironment(): NodeJS.ProcessEnv {
+  return {
+    NODE_ENV: 'test',
+    YUKI_DATABASE_URL: 'postgresql://unused/test',
+    YUKI_CSRF_KEY: Buffer.alloc(32, 1).toString('base64'),
+    YUKI_MASTER_KEY: Buffer.alloc(32, 2).toString('base64'),
+    YUKI_ALLOWED_ORIGINS: 'https://yuki.local',
+  };
+}
