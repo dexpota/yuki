@@ -1,0 +1,223 @@
+# 3D Print Organizer — MVP Implementation Plan
+
+## 1. Planning model
+
+This plan decomposes the MVP into tasks organized by product feature. Dependencies form a directed acyclic graph (DAG): an implementation task may start only when every task in its **Blocked by** column is complete and integrated.
+
+The **Blocks** column is the reverse edge list. `Blocked by` is the source of truth if the plan changes; both columns must be updated together.
+
+Tasks are intended to produce a tested, usable increment rather than one horizontal layer. A task may modify more than one component when that is necessary to complete its behavior, but it has one owning feature and one primary agent.
+
+The headings below are planning groups, not a request to create another directory for every heading. For example, notification tasks live under the coarse-grained `printing` feature defined in the architecture unless their implementation later justifies a split.
+
+### Components
+
+| Code | Component | Path |
+| --- | --- | --- |
+| FE | Browser frontend | `frontend/` |
+| BE | Backend API/worker artifact | `backend/` |
+| DB | PostgreSQL schema/migrations | `backend/migrations/` and the owning backend feature |
+| PROC | Restricted file processor | `processor/` |
+| DEP | Local/production deployment | `deploy/` |
+| DOC | Specifications and operational documentation | `docs/` and root Markdown files |
+
+## 2. Task catalogue and DAG edges
+
+### 2.1 Foundation
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| F01 | Initialize the TypeScript workspace, formatting, linting, test commands, and reproducible dependency lock. All empty artifacts build in CI. | FE, BE, PROC | — | F02, F03, F04 |
+| F02 | Add the development Compose topology and private network with PostgreSQL, proxy, persistent volumes, and health checks. A clean checkout starts predictably. | DEP | F01 | F05, F09, F10, O01 |
+| F03 | Bootstrap backend configuration and the API/worker entry points. Both commands start, validate configuration, and shut down cleanly. | BE | F01 | F05, F06, F08, F09, F10, M04 |
+| F04 | Bootstrap the React application, routing, query client, error boundary, and test harness. A production bundle is emitted. | FE | F01 | I02, C04, M06, P08, P10, N03, S01, O01 |
+| F05 | Implement PostgreSQL connections, transaction helper, typed query setup, and ordered migrations. Migration up/down behavior is integration-tested. | BE, DB | F02, F03 | F07, I01, C01, P01, P05, N01, O03 |
+| F06 | Implement HTTP conventions: validation, errors, request IDs, streaming, OpenAPI generation, idempotency keys, CSRF hook, and SSE transport. | BE | F03 | I01, C02, C03, M01, P01, P05, P08, P09, S01, O01 |
+| F07 | Implement the PostgreSQL-backed job runner, transactional enqueue, leases, retries, progress, and dead-letter state. Restart recovery is tested. | BE, DB | F05 | M01, C05, C06, P02, P03, N01 |
+| F08 | Define `BlobStore` and implement staged/committed local filesystem storage with streaming, hashing, reference tracking, and integrity checks. | BE, DB, DEP | F03 | C01, M01, C06, P09, S02, O03 |
+| F09 | Add structured logging, redaction, metrics, and readiness/liveness endpoints to API and worker. | BE, DEP | F02, F03 | O05 |
+| F10 | Define the versioned processor contract and restricted container runtime with no network, resource limits, disposable workspace, and timeout handling. | BE, PROC, DEP | F02, F03 | M02, M03, C05, P03, O02 |
+
+### 2.2 Identity
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| I01 | Implement first-user setup, Argon2id login, sessions, owner context, CSRF enforcement, and master-key-backed secret encryption. API integration tests cover setup and session expiry. | BE, DB | F05, F06 | I02, C02, M01, P01, P06, S01, O02 |
+| I02 | Implement first-run setup, sign-in, sign-out, and expired-session UI flows. | FE | F04, I01 | O01, O05 |
+
+### 2.3 Catalogue
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| C01 | Add catalogue-owned schema and persistence for models, immutable versions, assets, stored objects, tags, collections, favorites, and current version. Constraints enforce invariants. | BE, DB | F05, F08 | C02, C03, M01, C05, C06, P04 |
+| C02 | Implement authenticated model CRUD, tag/collection/favorite management, immutable version creation, current-version restoration, and deletion-policy hooks. | BE, DB | F06, I01, C01 | C04, C06, P09 |
+| C03 | Implement indexed search, filtering, deterministic cursor pagination, sorting, and print-count/last-printed projections. Query plans pass the reference-dataset budget. | BE, DB | F06, C01 | C04, O04 |
+| C04 | Implement catalogue browse, search/filter/sort, model details/editing, tags, collections, favorites, and version-history UI. | FE | F04, C02, C03 | O04, O05 |
+| C05 | Generate bounded GLB previews, dimensions, thumbnails, and G-code layer artifacts; render them interactively and show explicit failure/unsupported states. Original assets are never changed. | FE, BE, PROC | F07, F10, C01, M02, M03 | O02, O05 |
+| C06 | Define the versioned export manifest and implement streaming model export plus validated re-import preserving versions, assets, metadata, artifacts, and print history. | BE, DB, DOC | F07, F08, C01, C02, M02 | O03, O05 |
+
+### 2.4 Importing
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| M01 | Implement import sessions and streaming local upload into quarantine/staging, including SHA-256, configurable limits, progress, failure state, and atomic model publication. | BE, DB | F06, F07, F08, I01, C01 | M02, M03, M05, M06, P03 |
+| M02 | Implement safe ZIP inspection/extraction with traversal, link, member-count, expansion-size, and compression-ratio defenses while retaining the original archive. | BE, PROC | F10, M01 | C05, C06, M06, O02 |
+| M03 | Implement format/MIME detection, asset metadata extraction, exact-duplicate warnings, retryable processing, and clean partial-failure reporting. | BE, PROC | F10, M01 | C05, M06 |
+| M04 | Complete a time-boxed Thangs feasibility and legal/technical integration spike. Record the supported mechanism or a release blocker in an ADR. | BE, DOC | F03 | M05 |
+| M05 | Implement the feature-flagged public Thangs importer with URL canonicalization, SSRF defenses, attribution, bounded downloads, and no partially visible models. | BE | M01, M04 | M06 |
+| M06 | Implement local file, archive, and Thangs import UI with progress, warnings, duplicate decisions, and actionable failures. | FE | F04, M01, M02, M03, M05 | O05 |
+
+### 2.5 Printing
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| P01 | Implement printer configuration, encrypted credentials, connection verification, profile schema, and normalized OctoPrint gateway with contract tests. | BE, DB | F05, F06, I01 | P02, P04 |
+| P02 | Implement printer polling, observation freshness, active-job detection, startup/reconnect reconciliation, and external-job handling. | BE, DB | F07, P01 | P06, P08 |
+| P03 | Implement bounded G-code parsing for preview and compatibility facts, including build bounds and recognized target/flavor/nozzle/extruder metadata. | BE, PROC | F07, F10, M01 | P04 |
+| P04 | Define the versioned compatibility rule table and implement compatible/warning/unknown/hard-incompatible evaluation with immutable snapshots. | BE, DB, DOC | C01, P01, P03 | P05 |
+| P05 | Implement persistent per-printer queues, atomic ordering/reordering, removal, concurrency protection, and queue APIs. | BE, DB | F05, F06, P04 | P06, P08 |
+| P06 | Implement readiness-confirmation tokens, G-code upload/start orchestration, ambiguous-result reconciliation, and automatic print-attempt creation. | BE, DB | I01, P02, P05 | P07, P09, N01 |
+| P07 | Implement confirmed pause, resume, cancel, temperature, and supported basic controls with fresh-state validation and audit events. | BE, DB | P06 | O02, O05 |
+| P08 | Implement printer configuration/status, stale-data indicators, queues, compatibility results, readiness confirmation, monitoring, webcam, and controls UI using REST/SSE. | FE, BE | F04, F06, P02, P05 | O05 |
+| P09 | Implement immutable print history, manual attempts, outcome corrections, notes, photographs, model projections, and history APIs. | BE, DB | F06, F08, C02, P06 | P10, O04, O05 |
+| P10 | Implement model/printer history UI, manual attempt recording, outcome correction, notes, and photograph upload. | FE | F04, P09 | O05 |
+
+### 2.6 Notifications
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| N01 | Implement in-application notifications and a transactional delivery outbox for print completion, failure, cancellation, and disconnect events. | BE, DB | F05, F07, P06 | N02, N03 |
+| N02 | Implement the selected external notification adapter with encrypted configuration, bounded retries, and delivery diagnostics. | BE, DB | N01 | O05 |
+| N03 | Implement notification list, unread state, and live update UI. | FE | F04, N01 | O05 |
+
+### 2.7 Settings and storage
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| S01 | Implement authenticated installation settings for limits, retention, authentication mode, notifications, and printer/storage configuration surfaces. | FE, BE, DB | F04, F06, I01 | S02, O05 |
+| S02 | Implement the S3-compatible `BlobStore`, configuration validation, multipart streaming, checksum/existence checks, and local/S3 contract suite. | BE, DEP | F08, S01 | O03, O05 |
+
+### 2.8 Cross-cutting release work
+
+| ID | Task and completion condition | Components | Blocked by | Blocks |
+| --- | --- | --- | --- | --- |
+| O01 | Establish Playwright acceptance infrastructure from a clean Compose installation, including reusable login/setup fixtures. Feature tasks add scenarios to it. | FE, BE, DEP | F02, F04, F06, I02 | O05 |
+| O02 | Run the security hardening pass: hostile parser corpus, archive attacks, SSRF, secret/log review, container permissions, CSRF, and safety confirmation tests. | BE, PROC, DEP | I01, F10, M02, C05, P07 | O05 |
+| O03 | Implement and test maintenance-mode backup and clean-install restore for PostgreSQL plus local/S3 objects, with separate master-key guidance. | BE, DEP, DOC | F05, F08, C06, S02 | O05 |
+| O04 | Seed the 10,000-model reference dataset, measure library usability, inspect query plans, and tune indexes/projections to meet the two-second target. | FE, BE, DB | C03, C04, P09 | O05 |
+| O05 | Execute every MVP acceptance criterion, restart/recovery scenarios, upgrade rehearsal, and release documentation. No unresolved critical defect or undecided release blocker remains. | FE, BE, PROC, DEP, DOC | F09, I02, C04, C05, C06, M06, P07, P08, P09, P10, N02, N03, S01, S02, O01, O02, O03, O04 | — |
+
+## 3. Scheduling the DAG
+
+The scheduler should not assign work by document order. It maintains a ready queue:
+
+1. A task is **ready** when every `Blocked by` task is complete, reviewed, and integrated.
+2. Among ready tasks, prefer critical-path tasks with the most downstream blockers.
+3. Do not run two tasks concurrently if they own the same feature files, migration number, generated contract, package lock, or composition root.
+4. Reserve shared integration files for one integration owner. Feature agents expose registration functions instead of all editing `api-main.ts` or `worker-main.ts`.
+5. After a task lands, run its focused tests and the affected artifact's full test/build checks before releasing its blocked tasks.
+6. If implementation discovers a new dependency, update both edge columns before continuing. Never work around a missing prerequisite with temporary duplicate infrastructure.
+
+The first useful concurrency points are:
+
+```text
+F01
+ |-- F02 --+-- F05 --+-- F07
+ |         |         +-- catalogue/identity foundations
+ |         `-- F10 ----- processor and hostile-file work
+ |-- F03 --+-- F06 ----- HTTP-facing feature work
+ |         +-- F08 ----- storage-facing feature work
+ |         `-- M04 ----- Thangs feasibility spike
+ `-- F04 -------------- frontend shell, then feature UIs
+```
+
+After `F05`, `F06`, `F07`, `F08`, `F10`, `I01`, and `C01` land, catalogue/importing and printer foundations can advance largely in parallel. UI tasks deliberately wait for stable backend contracts rather than inventing duplicate client-side models.
+
+A topological sort currently produces the following dependency waves. These show theoretical readiness, not mandatory sprint boundaries; the coordinator must still honor file ownership and the available-agent limit.
+
+```text
+0:  F01
+1:  F02 F03 F04
+2:  F05 F06 F08 F09 F10 M04
+3:  F07 I01 C01
+4:  I02 C02 C03 M01 P01 S01
+5:  C04 M02 M03 M05 P02 P03 S02 O01
+6:  C05 C06 M06 P04
+7:  P05 O03
+8:  P06 P08
+9:  P07 P09 N01
+10: P10 N02 N03 O02 O04
+11: O05
+```
+
+## 4. Agent assignment contract
+
+One agent receives one ready task at a time. The coordinator supplies an assignment packet using this template:
+
+```text
+Task: <ID — exact title>
+Objective: <observable outcome from the task catalogue>
+Owning feature: <feature>
+Allowed components/paths: <explicit paths>
+Completed prerequisites: <IDs and relevant public contracts>
+Do not modify: <paths owned by concurrent tasks>
+Requirements: <MVP-REQUIREMENTS.md sections>
+Architecture constraints: <relevant ARCHITECTURE.md sections>
+Acceptance checks: <tests, build, and manual behavior>
+Deliverables: implementation, focused tests, migration/contract notes
+
+Work only on this task. Keep behavior and tests in the owning feature. Do not
+create generic model/service/repository folders, duplicate prerequisite code,
+or change a cross-feature public contract without reporting the need first.
+Use additive migrations. Preserve unrelated workspace changes. At completion,
+report changed files, commands run and results, contract/migration changes,
+remaining risks, and any newly discovered DAG edge.
+```
+
+### Example assignment: safe archive handling
+
+```text
+Task: M02 — Safe ZIP inspection and extraction
+Owning feature: importing
+Allowed paths: backend/src/importing/**, processor/**, focused test fixtures
+Completed prerequisites: F10, M01
+Do not modify: backend/src/catalogue/**, api-main.ts, worker-main.ts, migrations
+Requirements: MVP 5.1 local upload; 7 security and safety
+Acceptance checks:
+- accepts a valid multipart archive and retains its original bytes;
+- rejects traversal, links, excessive members, expansion bombs, and size limits;
+- never publishes a partial model;
+- processor time/memory failures become sanitized import failures;
+- importing and processor test suites pass.
+```
+
+### Example assignment: compatibility evaluation
+
+```text
+Task: P04 — G-code compatibility evaluator
+Owning feature: printing
+Allowed paths: backend/src/printing/compatibility/**, docs/ADR-compatibility.md
+Completed prerequisites: C01, P01, P03
+Do not modify: G-code parser, printer gateway, queue implementation
+Requirements: MVP 5.8 and acceptance criteria 9–10
+Acceptance checks:
+- produces compatible, warning, unknown, or hard-incompatible results;
+- unknown blocks by default, warning requires explicit override, hard conflict
+  cannot be overridden;
+- persists input snapshots and evaluator version;
+- table-driven boundary tests document every rule.
+```
+
+## 5. Task completion and integration
+
+A task is complete only when:
+
+- its behavior is reachable through the intended artifact, not merely implemented in an unused module;
+- focused automated tests pass and relevant artifact builds remain green;
+- database changes include forward migration and rollback/recovery guidance;
+- public API or processor-contract changes are generated/documented;
+- security and failure behavior from the task description is tested;
+- no temporary implementation duplicates a blocked task;
+- the coordinator has reviewed newly discovered dependencies and released downstream tasks.
+
+Commits should identify the task ID. The DAG tracks implementation readiness; it does not replace code review, integration testing, or the final acceptance gate.
