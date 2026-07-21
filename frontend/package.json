@@ -4,8 +4,25 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc --project tsconfig.build.json",
+    "build": "tsc --project tsconfig.build.json && vite build",
+    "dev": "vite",
+    "preview": "vite preview",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.101.3",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "react-router": "8.2.0"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "jsdom": "29.1.1",
+    "vite": "8.1.5"
   }
 }
