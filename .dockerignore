@@ -1,0 +1,9 @@
+.git
+.agents
+.codex
+**/node_modules
+**/dist
+coverage
+deploy/.env
+*.log
+.DS_Store

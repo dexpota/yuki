@@ -9,9 +9,23 @@
 		format json
 	}
 
-	respond /healthz 200
+	handle /healthz {
+		respond "ok" 200
+	}
 
-	# F03 and F04 replace this response with the API and static-web routes once
-	# those artifacts expose runnable development containers.
-	respond "Yuki development infrastructure is ready" 200
+	handle /api/* {
+		reverse_proxy api:3000
+	}
+
+	handle /health/* {
+		reverse_proxy api:3000
+	}
+
+	handle /diagnostics/* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		reverse_proxy web:5173
+	}
 }

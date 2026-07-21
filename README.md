@@ -23,6 +23,18 @@ pnpm lint
 pnpm format:check
 ```
 
+## Run the development stack
+
+```sh
+cd deploy
+cp .env.example .env
+docker compose up --detach --build
+```
+
+Open <http://127.0.0.1:8080> and create the first owner account. Yuki has no
+default application credentials. See [deploy/README.md](deploy/README.md) for
+configuration, health checks, rebuilds, and shutdown.
+
 Product scope, architecture, and task dependencies are defined in
 `MVP-REQUIREMENTS.md`, `ARCHITECTURE.md`, and `IMPLEMENTATION-PLAN.md`.
 
