@@ -9,11 +9,17 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | Task | Status | Note |
 | --- | --- | --- |
 | F01 | Complete | Workspace/toolchain verified on Node.js 24.18.0 and pnpm 11.15.1 |
-| F02 | Ready, not started | Held at the user's requested execution boundary |
-| F03 | Ready, not started | Held at the user's requested execution boundary |
-| F04 | Ready, not started | Held at the user's requested execution boundary |
+| F02 | Complete | Compose topology validated with a live PostgreSQL/proxy startup |
+| F03 | Complete | API and worker bootstrap validated through compiled process smoke tests |
+| F04 | Complete | React shell, routing, query provider, error boundary, tests, and production build verified |
+| F05 | Ready, not started | Released by F02 and F03; held for the next execution wave |
+| F06 | Ready, not started | Released by F03; held for the next execution wave |
+| F08 | Ready, not started | Released by F03; held for the next execution wave |
+| F09 | Ready, not started | Released by F02 and F03; held for the next execution wave |
+| F10 | Ready, not started | Released by F02 and F03; held for the next execution wave |
+| M04 | Ready, not started | Released by F03; held for the next execution wave |
 
-All other tasks remain blocked by the DAG.
+All tasks not listed above remain blocked by the DAG.
 
 The **Blocks** column is the reverse edge list. `Blocked by` is the source of truth if the plan changes; both columns must be updated together.
 
