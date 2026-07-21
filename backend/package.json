@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
+    "start:api": "node dist/api-main.js",
+    "start:worker": "node dist/worker-main.js",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run"
   }
