@@ -33,6 +33,28 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+input {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  color: #e8eee9;
+  background: #16211c;
+  border: 1px solid #415047;
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
+input:focus-visible,
+button:focus-visible,
+a:focus-visible {
+  outline: 3px solid #9ee2b7;
+  outline-offset: 2px;
+}
+
 .app-header {
   display: flex;
   align-items: baseline;
@@ -51,6 +73,30 @@ button {
 .app-purpose {
   color: #9da9a1;
   font-size: 0.9rem;
+}
+
+.owner-session,
+.session-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.owner-session {
+  margin-left: auto;
+  color: #b9c4bc;
+}
+
+.owner-session button {
+  padding: 0.45rem 0.7rem;
+  background: transparent;
+  border: 1px solid #536259;
+  color: #e8eee9;
+}
+
+.sign-out-error {
+  color: #ffb4ab;
+  font-size: 0.85rem;
 }
 
 .app-content,
@@ -86,4 +132,66 @@ p {
   font-weight: 800;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+}
+
+.identity-page,
+.identity-status {
+  width: min(34rem, calc(100% - 4rem));
+  margin: 0 auto;
+  padding: 7rem 0;
+}
+
+.identity-card {
+  padding: 2.5rem;
+  background: rgb(22 33 28 / 92%);
+  border: 1px solid #35433b;
+  border-radius: 0.8rem;
+  box-shadow: 0 1.5rem 5rem rgb(0 0 0 / 24%);
+}
+
+.identity-card h1,
+.identity-status h1 {
+  max-width: none;
+  font-size: 2.4rem;
+}
+
+.identity-card form {
+  display: grid;
+  gap: 1.25rem;
+  margin-top: 2rem;
+}
+
+.identity-card form > button {
+  justify-self: start;
+}
+
+.form-field {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.form-field label {
+  font-weight: 700;
+}
+
+.field-help {
+  color: #9da9a1;
+  font-size: 0.85rem;
+}
+
+.form-error,
+.identity-notice {
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 0.4rem;
+}
+
+.form-error {
+  color: #ffd8d4;
+  background: #542622;
+}
+
+.identity-notice {
+  color: #ffe7ad;
+  background: #4a3b15;
 }

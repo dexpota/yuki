@@ -1,5 +1,5 @@
 import { isRouteErrorResponse, Link, type RouteObject, useRouteError } from 'react-router';
-
+import { SessionGate } from '../../settings/identity/session.js';
 import { AppShell } from './AppShell.js';
 
 function WelcomePage() {
@@ -40,12 +40,19 @@ function RouteErrorPage() {
 
 export const routes: RouteObject[] = [
   {
-    path: '/',
-    element: <AppShell />,
+    element: <SessionGate />,
     errorElement: <RouteErrorPage />,
     children: [
-      { index: true, element: <WelcomePage /> },
-      { path: '*', element: <NotFoundPage /> },
+      { path: '/setup', element: null },
+      { path: '/sign-in', element: null },
+      {
+        path: '/',
+        element: <AppShell />,
+        children: [
+          { index: true, element: <WelcomePage /> },
+          { path: '*', element: <NotFoundPage /> },
+        ],
+      },
     ],
   },
 ];
