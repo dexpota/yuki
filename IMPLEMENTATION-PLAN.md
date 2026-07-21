@@ -13,20 +13,22 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | F03 | Complete | API and worker bootstrap validated through compiled process smoke tests |
 | F04 | Complete | React shell, routing, query provider, error boundary, tests, and production build verified |
 | F05 | Complete | PostgreSQL/Kysely foundation passed 27 tests against PostgreSQL 17.5 |
-| F06 | Ready, not started | Released by F03; held for the next execution wave |
-| F08 | Ready, not started | Released by F03; held for the next execution wave |
+| F06 | Complete | HTTP validation, errors, OpenAPI, CSRF, streaming, and SSE verified |
+| F08 | Complete | Local BlobStore and reference-aware lifecycle passed filesystem and PostgreSQL tests |
 | F09 | Ready, not started | Released by F02 and F03; held for the next execution wave |
 | F10 | Complete | Versioned protocol and restricted container probe verified |
-| F07 | Ready, not started | Released by F05; held for the next execution wave |
-| M04 | Complete | Feasibility decision recorded in ADR-0001; M05 remains externally blocked |
+| F07 | Complete | Durable jobs passed concurrency, lease, retry, recovery, and dead-letter tests |
+| I01 | Ready, not started | Released by F05 and F06; held for the next execution wave |
+| C01 | Ready, not started | Released by F05 and F08; held for the next execution wave |
+| M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 
 All tasks not listed above remain blocked by the DAG.
 
-### External blockers
+### Deferred work
 
-| ID | Condition | Blocks | Resolution |
-| --- | --- | --- | --- |
-| EXT-THANGS-01 | No documented, permitted public unauthenticated Thangs metadata/file-download contract is currently available | M05 and, transitively, M06 and O05 | Obtain an official supported API/contract or written authorization, or explicitly change the MVP requirement; see `docs/ADR-0001-thangs-public-import.md` |
+| ID | Decision | MVP effect |
+| --- | --- | --- |
+| M05 | Direct Thangs import is deferred; see `docs/ADR-0001-thangs-public-import.md` | Removed from the MVP DAG and release criteria; manual file/ZIP import remains in scope |
 
 The **Blocks** column is the reverse edge list. `Blocked by` is the source of truth if the plan changes; both columns must be updated together.
 
@@ -84,12 +86,11 @@ The headings below are planning groups, not a request to create another director
 
 | ID | Task and completion condition | Components | Blocked by | Blocks |
 | --- | --- | --- | --- | --- |
-| M01 | Implement import sessions and streaming local upload into quarantine/staging, including SHA-256, configurable limits, progress, failure state, and atomic model publication. | BE, DB | F06, F07, F08, I01, C01 | M02, M03, M05, M06, P03 |
+| M01 | Implement import sessions and streaming local upload into quarantine/staging, including SHA-256, configurable limits, progress, failure state, and atomic model publication. | BE, DB | F06, F07, F08, I01, C01 | M02, M03, M06, P03 |
 | M02 | Implement safe ZIP inspection/extraction with traversal, link, member-count, expansion-size, and compression-ratio defenses while retaining the original archive. | BE, PROC | F10, M01 | C05, C06, M06, O02 |
 | M03 | Implement format/MIME detection, asset metadata extraction, exact-duplicate warnings, retryable processing, and clean partial-failure reporting. | BE, PROC | F10, M01 | C05, M06 |
-| M04 | Complete a time-boxed Thangs feasibility and legal/technical integration spike. Record the supported mechanism or a release blocker in an ADR. | BE, DOC | F03 | M05 |
-| M05 | Implement the feature-flagged public Thangs importer with URL canonicalization, SSRF defenses, attribution, bounded downloads, and no partially visible models. | BE | M01, M04 | M06 |
-| M06 | Implement local file, archive, and Thangs import UI with progress, warnings, duplicate decisions, and actionable failures. | FE | F04, M01, M02, M03, M05 | O05 |
+| M04 | Complete a time-boxed Thangs feasibility and legal/technical integration spike. Record the supported mechanism or a release blocker in an ADR. | BE, DOC | F03 | — |
+| M06 | Implement local file and archive import UI with progress, warnings, duplicate decisions, and actionable failures. | FE | F04, M01, M02, M03 | O05 |
 
 ### 2.5 Printing
 
@@ -151,7 +152,7 @@ F01
  |         `-- F10 ----- processor and hostile-file work
  |-- F03 --+-- F06 ----- HTTP-facing feature work
  |         +-- F08 ----- storage-facing feature work
- |         `-- M04 ----- Thangs feasibility spike
+ |         `-- M04 ----- completed scope-decision spike
  `-- F04 -------------- frontend shell, then feature UIs
 ```
 
@@ -165,7 +166,7 @@ A topological sort currently produces the following dependency waves. These show
 2:  F05 F06 F08 F09 F10 M04
 3:  F07 I01 C01
 4:  I02 C02 C03 M01 P01 S01
-5:  C04 M02 M03 M05 P02 P03 S02 O01
+5:  C04 M02 M03 P02 P03 S02 O01
 6:  C05 C06 M06 P04
 7:  P05 O03
 8:  P06 P08
