@@ -2,12 +2,14 @@ import type { Kysely } from 'kysely';
 
 import { claimJob } from '../platform/jobs/index.js';
 import { handleLocalImportJob } from './job-handler.js';
+import type { LocalImportPipeline } from './processing/index.js';
 import type { ImportDatabaseSchema } from './schema.js';
 import { type LocalImportService, localImportJobType } from './service.js';
 
 export interface ProcessLocalImportOptions {
   readonly workerId: string;
   readonly leaseDurationMs: number;
+  readonly pipeline?: LocalImportPipeline;
 }
 
 /** Claims and handles at most one local-import job. Returns false when the queue is empty. */
@@ -22,6 +24,8 @@ export async function processNextLocalImportJob(
     types: [localImportJobType],
   });
   if (job === null) return false;
-  await handleLocalImportJob(database, service, job);
+  await handleLocalImportJob(database, service, job, {
+    ...(options.pipeline ? { pipeline: options.pipeline } : {}),
+  });
   return true;
 }

@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import type { OwnerContext } from '../identity/index.js';
 import { HttpError } from '../platform/http/index.js';
+import type { LocalImportPipeline, PersistedImportFile } from './processing/index.js';
 import {
   ImportSessionNotFoundError,
   type ImportSessionView,
@@ -17,6 +18,7 @@ export interface ImportIdentityContract {
 export interface LocalImportFeatureOptions {
   readonly service: LocalImportService;
   readonly identity: ImportIdentityContract;
+  readonly pipeline?: LocalImportPipeline;
 }
 
 /** Registers transport only; storage, database and worker composition stay in the roots. */
@@ -74,7 +76,9 @@ export function registerLocalImportFeature(
       const owner = options.identity.ownerForRequest(request).owner;
       const sessionId = pathSessionId(request);
       try {
-        return response(await options.service.get(owner.id, sessionId));
+        const session = await options.service.get(owner.id, sessionId);
+        const files = options.pipeline ? await options.pipeline.files(sessionId) : undefined;
+        return response(session, undefined, files);
       } catch (error) {
         if (error instanceof ImportSessionNotFoundError) {
           throw new HttpError(404, 'import_not_found', 'Import session does not exist');
@@ -83,6 +87,32 @@ export function registerLocalImportFeature(
       }
     },
   );
+
+  if (options.pipeline) {
+    application.post(
+      '/api/v1/imports/:sessionId/duplicate-decisions',
+      { preHandler: options.identity.requireOwner },
+      async (request, reply) => {
+        const owner = options.identity.ownerForRequest(request).owner;
+        const sessionId = pathSessionId(request);
+        try {
+          await options.service.get(owner.id, sessionId);
+          const fileIds = duplicateKeepFileIds(request.body);
+          await options.pipeline?.keepExactDuplicates(sessionId, fileIds);
+          reply.status(202);
+          return { sessionId, decision: 'keep', fileIds };
+        } catch (error) {
+          if (error instanceof ImportSessionNotFoundError) {
+            throw new HttpError(404, 'import_not_found', 'Import session does not exist');
+          }
+          if (error instanceof TypeError) {
+            throw new HttpError(409, 'duplicate_decision_invalid', error.message);
+          }
+          throw error;
+        }
+      },
+    );
+  }
 }
 
 function requiredHeader(request: FastifyRequest, name: string): string {
@@ -124,7 +154,11 @@ function isAsyncIterable(value: unknown): value is AsyncIterable<Uint8Array> {
   return typeof value === 'object' && value !== null && Symbol.asyncIterator in value;
 }
 
-function response(session: ImportSessionView, declaredLength?: number) {
+function response(
+  session: ImportSessionView,
+  declaredLength?: number,
+  files?: readonly PersistedImportFile[],
+) {
   return {
     id: session.id,
     state: session.state,
@@ -139,7 +173,49 @@ function response(session: ImportSessionView, declaredLength?: number) {
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
     completedAt: session.completedAt?.toISOString() ?? null,
+    ...(files ? { files: files.map(fileResponse) } : {}),
   };
+}
+
+function fileResponse(file: PersistedImportFile) {
+  return {
+    id: file.id,
+    fileKey: file.fileKey,
+    originalFilename: file.originalFilename,
+    isOriginal: file.isOriginal,
+    status: file.status,
+    role: file.role,
+    format: file.format,
+    detectedMimeType: file.detectedMimeType,
+    byteSize: file.byteSize,
+    checksum: file.checksum,
+    detection: file.detection,
+    warnings: file.warnings,
+    duplicateAssetIds: file.duplicateAssetIds,
+    duplicateDecision: file.duplicateDecision,
+    error: file.error,
+  };
+}
+
+function duplicateKeepFileIds(body: unknown): readonly string[] {
+  if (
+    typeof body !== 'object' ||
+    body === null ||
+    !('decision' in body) ||
+    body.decision !== 'keep' ||
+    !('fileIds' in body) ||
+    !Array.isArray(body.fileIds) ||
+    body.fileIds.length < 1 ||
+    body.fileIds.length > 100 ||
+    body.fileIds.some((id) => typeof id !== 'string' || !/^[a-f0-9-]{36}$/i.test(id))
+  ) {
+    throw new HttpError(
+      400,
+      'duplicate_decision_invalid',
+      'A keep decision with one or more import file IDs is required',
+    );
+  }
+  return body.fileIds;
 }
 
 function hasCause(error: unknown, kind: new (message?: string) => Error): boolean {

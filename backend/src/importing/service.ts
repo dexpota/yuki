@@ -199,8 +199,22 @@ export class LocalImportService {
 
       const modelId = randomUUID();
       const versionId = randomUUID();
-      const assetId = randomUUID();
       const publishedAt = new Date();
+      const processedFiles = await transaction
+        .selectFrom('import_files')
+        .selectAll()
+        .where('session_id', '=', sessionId)
+        .orderBy('file_key')
+        .execute();
+      if (processedFiles.length > 0 && !session.processing_completed) {
+        throw new Error('An incomplete import batch cannot be published');
+      }
+      if (processedFiles.some((file) => file.status === 'failed')) {
+        throw new Error('A failed import batch cannot be published');
+      }
+      if (processedFiles.some((file) => file.duplicate_decision === 'required')) {
+        throw new Error('Duplicate decisions are required before publication');
+      }
       await insertModel(transaction, {
         id: modelId,
         owner_id: session.owner_id,
@@ -228,20 +242,54 @@ export class LocalImportService {
         created_at: publishedAt,
         published_at: null,
       });
-      await insertDraftAsset(transaction, {
-        id: assetId,
-        model_id: modelId,
-        model_version_id: versionId,
-        stored_object_id: session.stored_object_id,
-        role: 'other',
-        format: 'other',
-        original_filename: session.original_filename,
-        detected_mime_type: session.claimed_mime_type,
-        byte_size: parseByteSize(session.uploaded_bytes),
-        checksum: session.checksum,
-        imported_at: publishedAt,
-        published_at: null,
-      });
+      const assets =
+        processedFiles.length > 0
+          ? processedFiles.map((file) => {
+              if (
+                !file.stored_object_id ||
+                !file.role ||
+                !file.format ||
+                !file.detected_mime_type
+              ) {
+                throw new Error('Processed import file is incomplete');
+              }
+              return {
+                storedObjectId: file.stored_object_id,
+                role: file.role,
+                format: file.format,
+                originalFilename: file.original_filename,
+                mimeType: file.detected_mime_type,
+                byteSize: parseByteSize(file.byte_size),
+                checksum: file.checksum,
+              };
+            })
+          : [
+              {
+                storedObjectId: session.stored_object_id,
+                role: 'other' as const,
+                format: 'other' as const,
+                originalFilename: session.original_filename,
+                mimeType: session.claimed_mime_type,
+                byteSize: parseByteSize(session.uploaded_bytes),
+                checksum: session.checksum,
+              },
+            ];
+      for (const asset of assets) {
+        await insertDraftAsset(transaction, {
+          id: randomUUID(),
+          model_id: modelId,
+          model_version_id: versionId,
+          stored_object_id: asset.storedObjectId,
+          role: asset.role,
+          format: asset.format,
+          original_filename: asset.originalFilename,
+          detected_mime_type: asset.mimeType,
+          byte_size: asset.byteSize,
+          checksum: asset.checksum,
+          imported_at: publishedAt,
+          published_at: null,
+        });
+      }
       await publishVersion(transaction, versionId, publishedAt);
       const completed = await transaction
         .updateTable('import_sessions')
@@ -278,7 +326,6 @@ export class LocalImportService {
         .updateTable('import_sessions')
         .set({
           state: 'failed',
-          stored_object_id: null,
           error_code: sanitizeCode(failure.code),
           error_message: sanitizeMessage(failure.message),
           updated_at: now,
@@ -286,11 +333,27 @@ export class LocalImportService {
         })
         .where('id', '=', sessionId)
         .executeTakeFirstOrThrow();
-      if (session.stored_object_id) {
+      const stagedObjects = await transaction
+        .selectFrom('import_files')
+        .select('stored_object_id')
+        .where('session_id', '=', sessionId)
+        .where('is_original', '=', false)
+        .where('stored_object_id', 'is not', null)
+        .execute();
+      const stagedIds = stagedObjects.flatMap((row) =>
+        row.stored_object_id ? [row.stored_object_id] : [],
+      );
+      if (stagedIds.length > 0) {
+        await transaction
+          .updateTable('import_files')
+          .set({ stored_object_id: null, updated_at: now })
+          .where('session_id', '=', sessionId)
+          .where('is_original', '=', false)
+          .execute();
         await transaction
           .updateTable('stored_objects')
           .set({ state: 'pending_delete', delete_after: now, updated_at: now })
-          .where('id', '=', session.stored_object_id)
+          .where('id', 'in', stagedIds)
           .where('reference_count', '=', 0)
           .execute();
       }

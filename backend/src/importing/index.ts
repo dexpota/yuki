@@ -13,8 +13,10 @@ export {
   handleLocalImportJob,
   type LocalImportJobHandlerOptions,
 } from './job-handler.js';
+export * from './processing/index.js';
 export type {
   ImportDatabaseSchema,
+  ImportFileTable,
   ImportSchema,
   ImportSessionState,
   ImportSessionTable,

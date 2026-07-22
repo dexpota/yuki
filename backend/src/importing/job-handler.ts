@@ -7,6 +7,11 @@ import {
   type RetryPolicy,
   reportJobProgress,
 } from '../platform/jobs/index.js';
+import {
+  DuplicateDecisionRequiredError,
+  ImportBatchFailure,
+  type LocalImportPipeline,
+} from './processing/index.js';
 import type { ImportDatabaseSchema } from './schema.js';
 import {
   type LocalImportService,
@@ -17,6 +22,8 @@ import {
 export interface LocalImportJobHandlerOptions {
   readonly retryPolicy?: RetryPolicy;
   readonly isRetryable?: (error: unknown) => boolean;
+  /** When supplied, processor inspection and durable staging precede atomic publication. */
+  readonly pipeline?: LocalImportPipeline;
 }
 
 /**
@@ -35,22 +42,32 @@ export async function handleLocalImportJob(
   if (!job.leaseToken) throw new TypeError('Local import job must be claimed before handling');
   const sessionId = sessionIdFrom(job.payload);
   try {
-    await reportJobProgress(database, job.id, job.leaseToken, 60, { stage: 'publishing' });
+    if (options.pipeline) {
+      await reportJobProgress(database, job.id, job.leaseToken, 60, { stage: 'processing' });
+      await options.pipeline.prepare(sessionId);
+    }
+    await reportJobProgress(database, job.id, job.leaseToken, 85, { stage: 'publishing' });
     await service.publish(sessionId);
     await completeJob(database, job.id, job.leaseToken);
   } catch (error) {
+    const waitingForDecision = error instanceof DuplicateDecisionRequiredError;
+    const processingFailure = error instanceof ImportBatchFailure;
     const failed = await failJob(
       database,
       job.id,
       job.leaseToken,
       {
-        code: 'local_import_failed',
-        message: 'The local file import could not be published',
-        retryable: options.isRetryable?.(error) ?? true,
+        code: processingFailure ? error.code : 'local_import_failed',
+        message: processingFailure ? error.message : 'The local file import could not be published',
+        retryable: waitingForDecision
+          ? false
+          : processingFailure
+            ? error.retryable
+            : (options.isRetryable?.(error) ?? true),
       },
       options.retryPolicy ?? { baseDelayMs: 1_000, maximumDelayMs: 60_000 },
     );
-    if (failed.state === 'dead_letter') {
+    if (failed.state === 'dead_letter' && !waitingForDecision) {
       await service.markProcessingFailure(sessionId, {
         code: failed.lastErrorCode ?? 'local_import_failed',
         message: failed.lastErrorMessage ?? 'The local file import could not be published',

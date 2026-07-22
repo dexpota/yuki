@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -9,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   handleLocalImportJob,
   type ImportDatabaseSchema,
+  LocalImportPipeline,
   LocalImportService,
   localImportJobType,
   UploadLimitExceededError,
@@ -43,6 +45,7 @@ integration('durable local file imports', () => {
     await sql`insert into identity_users (id) values (${ownerId})`.execute(database);
     await applyMigration(database, '0004_catalogue.up.sql');
     await applyMigration(database, '0005_import_sessions.up.sql');
+    await applyMigration(database, '0009_import_processing.up.sql');
 
     storageRoot = join(tmpdir(), `yuki-m01-${process.pid}-${Date.now()}`);
     blobStore = await LocalBlobStore.create(storageRoot);
@@ -163,6 +166,274 @@ integration('durable local file imports', () => {
     await expect(readdir(join(storageRoot, 'staging'))).resolves.toHaveLength(0);
   });
 
+  it('resumes a partially persisted archive batch and publishes every asset atomically', async () => {
+    const archive = Buffer.from('not-a-real-zip: isolated boundary owns archive validation');
+    const first = Buffer.from('solid one\nendsolid one\n');
+    const second = Buffer.from('G28\nG1 X1 Y1\n');
+    const service = new LocalImportService(database, blobStore, { maximumUploadBytes: 4096 });
+    const queued = await service.receive({
+      ownerId,
+      originalFilename: 'bundle.zip',
+      claimedMimeType: 'application/zip',
+      modelName: 'Restarted archive',
+      source: Readable.from([archive]),
+    });
+    let attempts = 0;
+    const pipeline = new LocalImportPipeline(database, blobStore, {
+      inspect: async () => {
+        attempts += 1;
+        return {
+          kind: 'archive' as const,
+          originalDetection: detection('archive', 'application/zip'),
+          files: [
+            prepared('models/one.stl', first, detection('stl', 'model/stl')),
+            {
+              ...prepared('jobs/one.gcode', second, detection('gcode', 'text/x-gcode')),
+              open:
+                attempts === 1
+                  ? async () => {
+                      throw new Error('simulated worker interruption');
+                    }
+                  : async () => Readable.from([second]),
+            },
+          ],
+        };
+      },
+    });
+
+    await expect(pipeline.prepare(queued.id)).rejects.toThrow('simulated worker interruption');
+    await expect(pipeline.files(queued.id)).resolves.toHaveLength(2);
+    await expect(pipeline.prepare(queued.id)).resolves.toHaveLength(3);
+    expect(attempts).toBe(2);
+    const archiveJob = required(
+      await claimJob(database, {
+        workerId: 'archive-worker',
+        leaseDurationMs: 10_000,
+        types: [localImportJobType],
+      }),
+      'Expected archive job',
+    );
+    await handleLocalImportJob(database, service, archiveJob, { pipeline });
+
+    const assets = await database
+      .selectFrom('catalogue_assets')
+      .select(['role', 'format', 'original_filename'])
+      .where('model_id', '=', (await service.get(ownerId, queued.id)).modelId)
+      .orderBy('original_filename')
+      .execute();
+    expect(assets).toEqual([
+      { role: 'original_archive', format: 'archive', original_filename: 'bundle.zip' },
+      { role: 'gcode', format: 'gcode', original_filename: 'jobs/one.gcode' },
+      { role: 'geometry', format: 'stl', original_filename: 'models/one.stl' },
+    ]);
+  });
+
+  it('persists sanitized failures and cleans extracted objects while retaining the original', async () => {
+    const original = Buffer.from('archive bytes');
+    const member = Buffer.from('solid retained only until failure');
+    const service = new LocalImportService(database, blobStore, { maximumUploadBytes: 4096 });
+    const queued = await service.receive({
+      ownerId,
+      originalFilename: 'hostile.zip',
+      claimedMimeType: 'application/zip',
+      modelName: 'Rejected archive',
+      source: Readable.from([original]),
+    });
+    const pipeline = new LocalImportPipeline(database, blobStore, {
+      inspect: async () => ({
+        kind: 'archive',
+        originalDetection: detection('archive', 'application/zip'),
+        files: [
+          prepared('safe.stl', member, detection('stl', 'model/stl')),
+          {
+            fileKey: 'bad/entry',
+            originalFilename: 'bad/entry',
+            size: 10,
+            checksum: 'a'.repeat(64),
+            error: {
+              code: 'ARCHIVE\nTRAVERSAL',
+              message: 'unsafe\u0000 internal/path',
+              retryable: false,
+            },
+          },
+        ],
+      }),
+    });
+    await expect(pipeline.prepare(queued.id)).rejects.toMatchObject({
+      code: 'import_batch_failed',
+    });
+    const preparedFiles = await pipeline.files(queued.id);
+    const originalObjectId = required(
+      preparedFiles.find((file) => file.isOriginal)?.storedObjectId,
+      'Expected retained original',
+    );
+    const extractedObjectId = required(
+      preparedFiles.find((file) => !file.isOriginal && file.status === 'accepted')?.storedObjectId,
+      'Expected extracted object',
+    );
+    const failureJob = required(
+      await claimJob(database, {
+        workerId: 'failure-worker',
+        leaseDurationMs: 10_000,
+        types: [localImportJobType],
+      }),
+      'Expected failure job',
+    );
+    await handleLocalImportJob(database, service, failureJob, { pipeline });
+
+    const files = await pipeline.files(queued.id);
+    expect(files.find((file) => file.status === 'failed')?.error).toEqual({
+      code: 'archive_traversal',
+      message: 'unsafe internal/path',
+      retryable: false,
+    });
+    const states = await database
+      .selectFrom('stored_objects')
+      .select(['id', 'state'])
+      .where('id', 'in', [originalObjectId, extractedObjectId])
+      .orderBy('id')
+      .execute();
+    expect(states.find((row) => row.id === extractedObjectId)?.state).toBe('pending_delete');
+    expect(states.find((row) => row.id === originalObjectId)?.state).toBe('committed');
+    expect(
+      files.find((file) => !file.isOriginal && file.status === 'accepted')?.storedObjectId,
+    ).toBeNull();
+    await expect(
+      database
+        .selectFrom('catalogue_models')
+        .select('id')
+        .where('name', '=', 'Rejected archive')
+        .execute(),
+    ).resolves.toHaveLength(0);
+  });
+
+  it('persists a sanitized processor-level failure without exposing implementation details', async () => {
+    const service = new LocalImportService(database, blobStore, { maximumUploadBytes: 4096 });
+    const queued = await service.receive({
+      ownerId,
+      originalFilename: 'processor-failure.stl',
+      claimedMimeType: 'model/stl',
+      modelName: 'Processor failure',
+      source: Readable.from([Buffer.from('solid failed')]),
+    });
+    const pipeline = new LocalImportPipeline(database, blobStore, {
+      inspect: async () => {
+        throw new Error('/private/workspace/parser crashed with secret detail');
+      },
+    });
+    await expect(pipeline.prepare(queued.id)).rejects.toMatchObject({
+      code: 'processor_unavailable',
+      message: 'The file processor could not complete the request',
+      retryable: true,
+    });
+    const report = await database
+      .selectFrom('import_sessions')
+      .select('processing_report')
+      .where('id', '=', queued.id)
+      .executeTakeFirstOrThrow();
+    expect(report.processing_report).toEqual({
+      kind: 'processor_failure',
+      failure: {
+        code: 'processor_unavailable',
+        message: 'The file processor could not complete the request',
+        retryable: true,
+      },
+    });
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const processorJob = required(
+        await claimJob(database, {
+          workerId: 'processor-failure-worker',
+          leaseDurationMs: 10_000,
+          types: [localImportJobType],
+          now: new Date(Date.now() + 60_000),
+        }),
+        'Expected processor failure job',
+      );
+      await handleLocalImportJob(database, service, processorJob, {
+        pipeline,
+        retryPolicy: { baseDelayMs: 1, maximumDelayMs: 1 },
+      });
+    }
+  });
+
+  it('pauses for an explicit owner-scoped duplicate keep decision and resumes the same job', async () => {
+    const bytes = Buffer.from('solid duplicate\nendsolid duplicate\n');
+    const baseline = new LocalImportService(database, blobStore, { maximumUploadBytes: 4096 });
+    await baseline.receive({
+      ownerId,
+      originalFilename: 'first.stl',
+      claimedMimeType: 'model/stl',
+      modelName: 'Duplicate source',
+      source: Readable.from([bytes]),
+    });
+    const baselineJob = required(
+      await claimJob(database, {
+        workerId: 'duplicate-baseline-worker',
+        leaseDurationMs: 10_000,
+        types: [localImportJobType],
+      }),
+      'Expected duplicate baseline job',
+    );
+    await handleLocalImportJob(database, baseline, baselineJob);
+
+    const service = new LocalImportService(database, blobStore, { maximumUploadBytes: 4096 });
+    const queued = await service.receive({
+      ownerId,
+      originalFilename: 'copy.stl',
+      claimedMimeType: 'model/stl',
+      modelName: 'Duplicate kept',
+      source: Readable.from([bytes]),
+    });
+    const pipeline = new LocalImportPipeline(database, blobStore, {
+      inspect: async () => ({
+        kind: 'file',
+        originalDetection: detection('stl', 'model/stl'),
+        files: [],
+      }),
+    });
+    const job = required(
+      await claimJob(database, {
+        workerId: 'duplicate-worker',
+        leaseDurationMs: 10_000,
+        types: [localImportJobType],
+      }),
+      'Expected duplicate job',
+    );
+    await handleLocalImportJob(database, service, job, { pipeline });
+    const pausedJob = await database
+      .selectFrom('jobs')
+      .select(['state', 'attempts', 'last_error_code'])
+      .where('id', '=', job.id)
+      .executeTakeFirstOrThrow();
+    expect(pausedJob).toMatchObject({
+      state: 'dead_letter',
+      last_error_code: 'duplicate_decision_required',
+    });
+    const decision = await pipeline.files(queued.id);
+    const duplicateFile = required(
+      decision.find((file) => file.duplicateDecision === 'required'),
+      'Expected duplicate decision',
+    );
+    await pipeline.keepExactDuplicates(queued.id, [duplicateFile.id]);
+    await expect(
+      database
+        .selectFrom('jobs')
+        .select(['state', 'attempts'])
+        .where('id', '=', job.id)
+        .executeTakeFirstOrThrow(),
+    ).resolves.toEqual({ state: 'queued', attempts: 0 });
+    const resumed = required(
+      await claimJob(database, {
+        workerId: 'duplicate-worker',
+        leaseDurationMs: 10_000,
+        types: [localImportJobType],
+      }),
+      'Expected resumed job',
+    );
+    await handleLocalImportJob(database, service, resumed, { pipeline });
+    await expect(service.get(ownerId, queued.id)).resolves.toMatchObject({ state: 'succeeded' });
+  });
+
   it('dead-letters a publication failure without exposing a partial model', async () => {
     const service = new LocalImportService(database, blobStore, { maximumUploadBytes: 1024 });
     const queued = await service.receive({
@@ -212,16 +483,18 @@ integration('durable local file imports', () => {
         .select('state')
         .where('id', '=', storedObjectId)
         .executeTakeFirstOrThrow(),
-    ).resolves.toEqual({ state: 'pending_delete' });
+    ).resolves.toEqual({ state: 'committed' });
   });
 
   it('rolls migration 0005 down independently', async () => {
+    await applyMigration(database, '0009_import_processing.down.sql');
     await applyMigration(database, '0005_import_sessions.down.sql');
     const relation = await sql<{
       relation: string | null;
     }>`select to_regclass('import_sessions')::text as relation`.execute(database);
     expect(relation.rows[0]?.relation).toBeNull();
     await applyMigration(database, '0005_import_sessions.up.sql');
+    await applyMigration(database, '0009_import_processing.up.sql');
   });
 });
 
@@ -266,6 +539,25 @@ function hasCause(error: unknown, kind: new (message?: string) => Error): boolea
 function required<T>(value: T | null | undefined, message: string): T {
   if (value === null || value === undefined) throw new Error(message);
   return value;
+}
+
+function checksum(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
+}
+
+function detection(format: 'stl' | 'gcode' | 'archive', mimeType: string) {
+  return { format, mimeType, confidence: 'signature' as const, metadata: {}, warnings: [] };
+}
+
+function prepared(fileKey: string, bytes: Buffer, facts: ReturnType<typeof detection>) {
+  return {
+    fileKey,
+    originalFilename: fileKey,
+    size: bytes.length,
+    checksum: checksum(bytes),
+    detection: facts,
+    open: async () => Readable.from([bytes]),
+  };
 }
 
 function configuration(connectionString: string, applicationName: string) {
