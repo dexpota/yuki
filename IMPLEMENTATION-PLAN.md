@@ -22,8 +22,10 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | C01 | Complete | Catalogue invariants and migrations 0001–0004 passed full PostgreSQL tests |
 | I02 | Complete | First-run, sign-in/out, authenticated routing, and session-expiry recovery verified |
 | C02 | Complete | Authenticated catalogue workflows and runnable API composition verified |
-| C03 | Ready, not started | Released by F06 and C01; held for the next execution wave |
+| C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |
+| M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
+| M03 | Complete | Restricted processor detection, bounded metadata, duplicate warnings, and atomic partial-failure reporting verified |
 | P01 | Ready, not started | Released by F05, F06, and I01; held for the next execution wave |
 | S01 | Ready, not started | Released by F04, F06, and I01; held for the next execution wave |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
