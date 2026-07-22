@@ -23,10 +23,16 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | I02 | Complete | First-run, sign-in/out, authenticated routing, and session-expiry recovery verified |
 | C02 | Complete | Authenticated catalogue workflows and runnable API composition verified |
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
+| C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
+| C06 | Blocked | Core manifest, ZIP, durable jobs, API, and current-schema round trip complete; final artifact/history fields require C05 and P09 |
+| C07 | Blocked | Browser-ready asset download and upload-to-new-version contract requires M07 |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |
 | M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
 | M03 | Complete | Restricted processor detection, bounded metadata, duplicate warnings, and atomic partial-failure reporting verified |
-| P01 | Ready, not started | Released by F05, F06, and I01; held for the next execution wave |
+| M07 | Ready, not started | Newly identified integration edge: invoke M02/M03 from the durable import worker and persist reports/decisions |
+| M06 | Blocked | Requires M07 so the UI consumes persisted warnings and duplicate decisions instead of inventing a contract |
+| P01 | Complete | Encrypted owner-scoped printer configuration, SSRF-aware verification, profile v1, and normalized OctoPrint gateway verified |
+| P02 | Ready, not started | Released by F07 and P01; held for the next execution wave |
 | S01 | Ready, not started | Released by F04, F06, and I01; held for the next execution wave |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 
@@ -70,7 +76,7 @@ The headings below are planning groups, not a request to create another director
 | F07 | Implement the PostgreSQL-backed job runner, transactional enqueue, leases, retries, progress, and dead-letter state. Restart recovery is tested. | BE, DB | F05 | M01, C05, C06, P02, P03, N01 |
 | F08 | Define `BlobStore` and implement staged/committed local filesystem storage with streaming, hashing, reference tracking, and integrity checks. | BE, DB, DEP | F03 | C01, M01, C06, P09, S02, O03 |
 | F09 | Add structured logging, redaction, metrics, and readiness/liveness endpoints to API and worker. | BE, DEP | F02, F03 | O05 |
-| F10 | Define the versioned processor contract and restricted container runtime with no network, resource limits, disposable workspace, and timeout handling. | BE, PROC, DEP | F02, F03 | M02, M03, C05, P03, O02 |
+| F10 | Define the versioned processor contract and restricted container runtime with no network, resource limits, disposable workspace, and timeout handling. | BE, PROC, DEP | F02, F03 | M02, M03, M07, C05, P03, O02 |
 
 ### 2.2 Identity
 
@@ -84,21 +90,23 @@ The headings below are planning groups, not a request to create another director
 | ID | Task and completion condition | Components | Blocked by | Blocks |
 | --- | --- | --- | --- | --- |
 | C01 | Add catalogue-owned schema and persistence for models, immutable versions, assets, stored objects, tags, collections, favorites, and current version. Constraints enforce invariants. | BE, DB | F05, F08, I01 | C02, C03, M01, C05, C06, P04 |
-| C02 | Implement authenticated model CRUD, tag/collection/favorite management, immutable version creation, current-version restoration, and deletion-policy hooks. | BE, DB | F06, I01, C01 | C04, C06, P09 |
+| C02 | Implement authenticated model CRUD, tag/collection/favorite management, immutable version creation, current-version restoration, and deletion-policy hooks. | BE, DB | F06, I01, C01 | C04, C06, C07, P09 |
 | C03 | Implement indexed search, filtering, deterministic cursor pagination, sorting, and print-count/last-printed projections. Query plans pass the reference-dataset budget. | BE, DB | F06, C01 | C04, O04 |
 | C04 | Implement catalogue browse, search/filter/sort, model details/editing, tags, collections, favorites, and version-history UI. | FE | F04, C02, C03 | O04, O05 |
-| C05 | Generate bounded GLB previews, dimensions, thumbnails, and G-code layer artifacts; render them interactively and show explicit failure/unsupported states. Original assets are never changed. | FE, BE, PROC | F07, F10, C01, M02, M03 | O02, O05 |
-| C06 | Define the versioned export manifest and implement streaming model export plus validated re-import preserving versions, assets, metadata, artifacts, and print history. | BE, DB, DOC | F07, F08, C01, C02, M02 | O03, O05 |
+| C05 | Generate bounded GLB previews, dimensions, thumbnails, and G-code layer artifacts; render them interactively and show explicit failure/unsupported states. Original assets are never changed. | FE, BE, PROC | F07, F10, C01, M02, M03 | C06, O02, O05 |
+| C06 | Define the versioned export manifest and implement streaming model export plus validated re-import preserving versions, assets, metadata, artifacts, and print history. | BE, DB, DOC | F07, F08, C01, C02, M02, C05, P09 | O03, O05 |
+| C07 | Add authenticated original-asset downloads and a browser-ready upload workflow that publishes a new immutable version through the import processor. | BE, DB | C02, M07 | O05 |
 
 ### 2.4 Importing
 
 | ID | Task and completion condition | Components | Blocked by | Blocks |
 | --- | --- | --- | --- | --- |
-| M01 | Implement import sessions and streaming local upload into quarantine/staging, including SHA-256, configurable limits, progress, failure state, and atomic model publication. | BE, DB | F06, F07, F08, I01, C01 | M02, M03, M06, P03 |
-| M02 | Implement safe ZIP inspection/extraction with traversal, link, member-count, expansion-size, and compression-ratio defenses while retaining the original archive. | BE, PROC | F10, M01 | C05, C06, M06, O02 |
-| M03 | Implement format/MIME detection, asset metadata extraction, exact-duplicate warnings, retryable processing, and clean partial-failure reporting. | BE, PROC | F10, M01 | C05, M06 |
+| M01 | Implement import sessions and streaming local upload into quarantine/staging, including SHA-256, configurable limits, progress, failure state, and atomic model publication. | BE, DB | F06, F07, F08, I01, C01 | M02, M03, M07, P03 |
+| M02 | Implement safe ZIP inspection/extraction with traversal, link, member-count, expansion-size, and compression-ratio defenses while retaining the original archive. | BE, PROC | F10, M01 | C05, C06, M07, O02 |
+| M03 | Implement format/MIME detection, asset metadata extraction, exact-duplicate warnings, retryable processing, and clean partial-failure reporting. | BE, PROC | F10, M01 | C05, M07 |
 | M04 | Complete a time-boxed Thangs feasibility and legal/technical integration spike. Record the supported mechanism or a release blocker in an ADR. | BE, DOC | F03 | — |
-| M06 | Implement local file and archive import UI with progress, warnings, duplicate decisions, and actionable failures. | FE | F04, M01, M02, M03 | O05 |
+| M07 | Integrate archive extraction and file detection into the durable local-import worker, persist per-file reports and duplicate decisions, retain originals, commit extracted assets, and publish only after the complete batch succeeds. | BE, DB, DEP | F10, M01, M02, M03 | C07, M06 |
+| M06 | Implement local file and archive import UI with progress, warnings, duplicate decisions, and actionable failures. | FE | F04, M07 | O05 |
 
 ### 2.5 Printing
 
@@ -112,7 +120,7 @@ The headings below are planning groups, not a request to create another director
 | P06 | Implement readiness-confirmation tokens, G-code upload/start orchestration, ambiguous-result reconciliation, and automatic print-attempt creation. | BE, DB | I01, P02, P05 | P07, P09, N01 |
 | P07 | Implement confirmed pause, resume, cancel, temperature, and supported basic controls with fresh-state validation and audit events. | BE, DB | P06 | O02, O05 |
 | P08 | Implement printer configuration/status, stale-data indicators, queues, compatibility results, readiness confirmation, monitoring, webcam, and controls UI using REST/SSE. | FE, BE | F04, F06, P02, P05 | O05 |
-| P09 | Implement immutable print history, manual attempts, outcome corrections, notes, photographs, model projections, and history APIs. | BE, DB | F06, F08, C02, P06 | P10, O04, O05 |
+| P09 | Implement immutable print history, manual attempts, outcome corrections, notes, photographs, model projections, and history APIs. | BE, DB | F06, F08, C02, P06 | C06, P10, O04, O05 |
 | P10 | Implement model/printer history UI, manual attempt recording, outcome correction, notes, and photograph upload. | FE | F04, P09 | O05 |
 
 ### 2.6 Notifications
@@ -176,12 +184,13 @@ A topological sort currently produces the following dependency waves. These show
 4:  I02 C01 P01 S01
 5:  C02 C03 M01 P02 S02 O01
 6:  C04 M02 M03 P03
-7:  C05 C06 M06 P04
-8:  P05 O03
+7:  C05 M07 P04
+8:  C07 M06 P05
 9:  P06 P08
 10: P07 P09 N01
-11: P10 N02 N03 O02 O04
-12: O05
+11: C06 P10 N02 N03 O02 O04
+12: O03
+13: O05
 ```
 
 ## 4. Agent assignment contract

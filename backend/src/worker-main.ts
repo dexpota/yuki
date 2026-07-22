@@ -4,6 +4,13 @@ import { pathToFileURL } from 'node:url';
 
 import { sql } from 'kysely';
 
+import {
+  type CatalogueDatabaseSchema,
+  type CataloguePortabilityDatabaseSchema,
+  CataloguePortabilityOperations,
+  CataloguePortabilityService,
+  processNextCataloguePortabilityJob,
+} from './catalogue/index.js';
 import type { IdentityDatabaseSchema } from './identity/index.js';
 import {
   type ImportDatabaseSchema,
@@ -37,7 +44,9 @@ import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 
 export const workerArtifact = 'backend-worker';
 
-export type WorkerDatabaseSchema = IdentityDatabaseSchema & ImportDatabaseSchema;
+export type WorkerDatabaseSchema = IdentityDatabaseSchema &
+  ImportDatabaseSchema &
+  CataloguePortabilityDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
@@ -77,6 +86,17 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               progressIntervalBytes: configuration.localImport.progressIntervalBytes,
             },
           );
+          const portabilityOperations = new CataloguePortabilityOperations(
+            database as unknown as Database<CataloguePortabilityDatabaseSchema>,
+            blobStore,
+            'local',
+            configuration.localImport.maximumUploadBytes,
+          );
+          const portability = new CataloguePortabilityService(
+            database as unknown as Database<CatalogueDatabaseSchema>,
+            blobStore,
+            { storageBackend: 'local' },
+          );
           health.addReadinessCheck('database', async () => {
             await sql`select 1`.execute(database as Database<WorkerDatabaseSchema>);
           });
@@ -90,6 +110,8 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
             workerLoop = runLocalImportWorkerLoop(
               database as Database<WorkerDatabaseSchema>,
               service,
+              portabilityOperations,
+              portability,
               configuration.localImport,
               cancellation.signal,
               logger,
@@ -157,6 +179,8 @@ function readDiagnosticsPort(environment: NodeJS.ProcessEnv): number {
 async function runLocalImportWorkerLoop(
   database: Database<WorkerDatabaseSchema>,
   service: LocalImportService,
+  portabilityOperations: CataloguePortabilityOperations,
+  portability: CataloguePortabilityService,
   configuration: LocalImportConfiguration,
   signal: AbortSignal,
   logger: Logger,
@@ -165,11 +189,18 @@ async function runLocalImportWorkerLoop(
   while (!signal.aborted) {
     let processed = false;
     try {
-      processed = await processNextLocalImportJob(
+      const localImportProcessed = await processNextLocalImportJob(
         database as unknown as Database<ImportDatabaseSchema>,
         service,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
+      const portabilityProcessed = await processNextCataloguePortabilityJob(
+        database as unknown as Database<CataloguePortabilityDatabaseSchema>,
+        portabilityOperations,
+        portability,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
+      processed = localImportProcessed || portabilityProcessed;
     } catch (error) {
       logger.error('local_import_worker_iteration_failed', { error });
     }

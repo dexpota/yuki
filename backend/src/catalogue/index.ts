@@ -14,6 +14,7 @@ export {
   normalizeCatalogueName,
   publishVersion,
 } from './persistence.js';
+export * from './portability/index.js';
 export type {
   CatalogueAssetFormat,
   CatalogueAssetRole,
@@ -42,5 +43,6 @@ export {
   createCatalogueDeletionPolicy,
   type DeletedAssetReference,
   type ModelDetail,
+  type TagRecord,
   type UpdateModelInput,
 } from './service.js';

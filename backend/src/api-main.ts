@@ -4,7 +4,10 @@ import { sql } from 'kysely';
 
 import {
   type CatalogueDatabaseSchema,
+  type CataloguePortabilityDatabaseSchema,
+  CataloguePortabilityOperations,
   registerCatalogueFeature,
+  registerCataloguePortabilityFeature,
   registerCatalogueSearchFeature,
 } from './catalogue/index.js';
 import {
@@ -43,6 +46,7 @@ import {
   type Logger,
 } from './platform/observability/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
+import { type PrinterDatabaseSchema, registerPrinterFeature } from './printing/index.js';
 
 export const apiArtifact = 'backend-api';
 
@@ -53,7 +57,10 @@ export interface ApiCompositionConfiguration extends ApiConfiguration {
   readonly localImport: LocalImportConfiguration;
 }
 
-export type ApiDatabaseSchema = IdentityDatabaseSchema & ImportDatabaseSchema;
+export type ApiDatabaseSchema = IdentityDatabaseSchema &
+  ImportDatabaseSchema &
+  CataloguePortabilityDatabaseSchema &
+  PrinterDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
   readonly createDatabase?: (configuration: DatabaseConfiguration) => Database<ApiDatabaseSchema>;
@@ -158,6 +165,21 @@ export async function createApiApplication(
           progressIntervalBytes: configuration.localImport.progressIntervalBytes,
         },
       ),
+    });
+    const portabilityOperations = new CataloguePortabilityOperations(
+      database as unknown as Database<CataloguePortabilityDatabaseSchema>,
+      blobStore,
+      'local',
+      configuration.localImport.maximumUploadBytes,
+    );
+    registerCataloguePortabilityFeature(application, {
+      identity,
+      operations: portabilityOperations,
+    });
+    registerPrinterFeature(application, {
+      database: database as unknown as Database<PrinterDatabaseSchema>,
+      identity,
+      secrets: identity.secrets,
     });
     installHttpObservability(application, {
       service: apiArtifact,
