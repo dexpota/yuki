@@ -1,10 +1,12 @@
 export const PROCESSOR_PROTOCOL_VERSION = 1 as const;
 export const MAX_PROCESSOR_MESSAGE_BYTES = 64 * 1024;
 
-export interface ProcessorRequest {
+export interface ProcessorRequest<TResult = unknown> {
   readonly protocolVersion: typeof PROCESSOR_PROTOCOL_VERSION;
   readonly requestId: string;
-  readonly operation: 'probe';
+  readonly operation: string;
+  /** Carries the operation result type without adding anything to the wire format. */
+  readonly __resultType?: TResult;
 }
 
 export type ProcessorErrorCode =
@@ -16,15 +18,17 @@ export type ProcessorErrorCode =
   | 'TIMEOUT'
   | 'TERMINATED';
 
-export type ProcessorResponse =
+export interface ProbeResult {
+  readonly processorVersion: string;
+  readonly capabilities: readonly string[];
+}
+
+export type ProcessorResponse<TResult = ProbeResult> =
   | {
       readonly protocolVersion: typeof PROCESSOR_PROTOCOL_VERSION;
       readonly requestId: string;
       readonly ok: true;
-      readonly result: {
-        readonly processorVersion: string;
-        readonly capabilities: readonly string[];
-      };
+      readonly result: TResult;
     }
   | ProcessorFailure;
 
@@ -36,17 +40,22 @@ export interface ProcessorFailure {
     readonly code: ProcessorErrorCode;
     readonly message: string;
     readonly retryable: boolean;
+    readonly reason?: string;
   };
 }
 
-export function probeRequest(requestId: string): ProcessorRequest {
+export function probeRequest(requestId: string): ProcessorRequest<ProbeResult> {
   if (!validRequestId(requestId)) {
     throw new Error('Processor request ID is invalid.');
   }
   return { protocolVersion: PROCESSOR_PROTOCOL_VERSION, requestId, operation: 'probe' };
 }
 
-export function parseResponse(value: unknown, expectedRequestId: string): ProcessorResponse {
+export function parseResponse<TResult = ProbeResult>(
+  value: unknown,
+  expectedRequestId: string,
+  operation = 'probe',
+): ProcessorResponse<TResult> {
   if (!isRecord(value) || value.protocolVersion !== PROCESSOR_PROTOCOL_VERSION) {
     throw new Error('Processor returned an unsupported protocol response.');
   }
@@ -55,22 +64,22 @@ export function parseResponse(value: unknown, expectedRequestId: string): Proces
   }
 
   if (value.ok) {
-    if (
-      !isRecord(value.result) ||
-      typeof value.result.processorVersion !== 'string' ||
-      !Array.isArray(value.result.capabilities) ||
-      !value.result.capabilities.every((item) => typeof item === 'string')
-    ) {
+    if (!('result' in value)) {
       throw new Error('Processor returned a malformed response.');
     }
+    if (
+      operation === 'probe' &&
+      (!isRecord(value.result) ||
+        typeof value.result.processorVersion !== 'string' ||
+        !Array.isArray(value.result.capabilities) ||
+        !value.result.capabilities.every((item) => typeof item === 'string'))
+    )
+      throw new Error('Processor returned a malformed response.');
     return {
       protocolVersion: PROCESSOR_PROTOCOL_VERSION,
       requestId: expectedRequestId,
       ok: true,
-      result: {
-        processorVersion: value.result.processorVersion,
-        capabilities: value.result.capabilities,
-      },
+      result: value.result as TResult,
     };
   }
 
@@ -78,7 +87,9 @@ export function parseResponse(value: unknown, expectedRequestId: string): Proces
     !isRecord(value.error) ||
     !isErrorCode(value.error.code) ||
     typeof value.error.message !== 'string' ||
-    typeof value.error.retryable !== 'boolean'
+    typeof value.error.retryable !== 'boolean' ||
+    (value.error.reason !== undefined &&
+      (typeof value.error.reason !== 'string' || !/^[a-z0-9_]{1,80}$/.test(value.error.reason)))
   ) {
     throw new Error('Processor returned a malformed response.');
   }
@@ -90,6 +101,7 @@ export function parseResponse(value: unknown, expectedRequestId: string): Proces
       code: value.error.code,
       message: value.error.message,
       retryable: value.error.retryable,
+      ...(value.error.reason === undefined ? {} : { reason: value.error.reason }),
     },
   };
 }
@@ -99,12 +111,13 @@ export function processorFailure(
   code: ProcessorErrorCode,
   message: string,
   retryable: boolean,
+  reason?: string,
 ): ProcessorFailure {
   return {
     protocolVersion: PROCESSOR_PROTOCOL_VERSION,
     requestId,
     ok: false,
-    error: { code, message, retryable },
+    error: { code, message, retryable, ...(reason === undefined ? {} : { reason }) },
   };
 }
 

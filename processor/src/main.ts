@@ -1,10 +1,14 @@
 import { stdin, stdout } from 'node:process';
 
+import { ArchiveRejectedError, extractArchive } from './archive/index.js';
+import { DetectionLimitError, detectAsset, FileRandomAccessInput } from './detection/index.js';
 import {
   failureFrom,
   MAX_MESSAGE_BYTES,
   PROCESSOR_PROTOCOL_VERSION,
   type ProcessorFailure,
+  type ProcessorOperationResult,
+  type ProcessorRequest,
   type ProcessorResponse,
   ProtocolValidationError,
   parseRequest,
@@ -13,20 +17,79 @@ import {
 const PROCESSOR_VERSION = '0.1.0';
 
 export async function processMessage(message: string): Promise<ProcessorResponse> {
+  let value: unknown;
   try {
-    const request = parseRequest(JSON.parse(message) as unknown);
-    return {
-      protocolVersion: PROCESSOR_PROTOCOL_VERSION,
-      requestId: request.requestId,
-      ok: true,
-      result: { processorVersion: PROCESSOR_VERSION, capabilities: [] },
-    };
+    value = JSON.parse(message) as unknown;
+  } catch {
+    return malformedRequest();
+  }
+
+  let request: ProcessorRequest;
+  try {
+    request = parseRequest(value);
   } catch (error) {
     if (error instanceof ProtocolValidationError) {
       return failureFrom(error);
     }
     return malformedRequest();
   }
+
+  try {
+    if (request.operation === 'probe') {
+      return success(request.requestId, {
+        processorVersion: PROCESSOR_VERSION,
+        capabilities: ['detect-file', 'extract-zip'],
+      });
+    }
+    if (request.operation === 'extract-zip') {
+      return success(request.requestId, await extractArchive(request));
+    }
+
+    const input = await FileRandomAccessInput.open(request.inputPath);
+    try {
+      return success(request.requestId, await detectAsset(input, request.filename, request.limits));
+    } finally {
+      await input.close();
+    }
+  } catch (error) {
+    if (error instanceof ArchiveRejectedError) {
+      return processingFailure(request.requestId, error.message, error.code);
+    }
+    if (error instanceof DetectionLimitError) {
+      return processingFailure(
+        request.requestId,
+        'The file could not be inspected within the configured limits.',
+        'detection_limit',
+      );
+    }
+    return processingFailure(
+      request.requestId,
+      'The file processor could not complete the operation.',
+      'unexpected_failure',
+      true,
+    );
+  }
+}
+
+function success<TResult extends ProcessorOperationResult>(
+  requestId: string,
+  result: TResult,
+): ProcessorResponse {
+  return { protocolVersion: PROCESSOR_PROTOCOL_VERSION, requestId, ok: true, result };
+}
+
+function processingFailure(
+  requestId: string,
+  message: string,
+  reason: string,
+  retryable = false,
+): ProcessorFailure {
+  return {
+    protocolVersion: PROCESSOR_PROTOCOL_VERSION,
+    requestId,
+    ok: false,
+    error: { code: 'PROCESSOR_FAILURE', message, retryable, reason },
+  };
 }
 
 async function main(): Promise<void> {

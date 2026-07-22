@@ -1,7 +1,9 @@
+export * from './archive/index.js';
 export {
   type LocalImportConfiguration,
   readLocalImportConfiguration,
 } from './configuration.js';
+export * from './detection/index.js';
 export {
   type ImportIdentityContract,
   type LocalImportFeatureOptions,

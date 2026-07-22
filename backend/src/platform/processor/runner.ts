@@ -44,12 +44,12 @@ export interface ProcessorFileMount {
   readonly writable: boolean;
 }
 
-export async function runProcessor(
-  request: ProcessorRequest,
+export async function runProcessor<TResult = unknown>(
+  request: ProcessorRequest<TResult>,
   configuration: ProcessorRunnerConfiguration,
   dependencies: ProcessorRunnerDependencies = {},
   mounts: readonly ProcessorFileMount[] = [],
-): Promise<ProcessorResponse> {
+): Promise<ProcessorResponse<TResult>> {
   validateConfiguration(configuration);
   let processHandle: RunningProcess;
   try {
@@ -120,7 +120,11 @@ export async function runProcessor(
   }
 
   try {
-    return parseResponse(JSON.parse(capturedStdout.text.trim()) as unknown, request.requestId);
+    return parseResponse<TResult>(
+      JSON.parse(capturedStdout.text.trim()) as unknown,
+      request.requestId,
+      request.operation,
+    );
   } catch {
     return processorFailure(
       request.requestId,
@@ -131,7 +135,7 @@ export async function runProcessor(
   }
 }
 
-function unavailableFailure(requestId: string): ProcessorResponse {
+function unavailableFailure<TResult>(requestId: string): ProcessorResponse<TResult> {
   return processorFailure(requestId, 'PROCESSOR_FAILURE', 'File processor is unavailable.', true);
 }
 

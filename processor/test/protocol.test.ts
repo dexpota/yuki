@@ -7,7 +7,11 @@ describe('processor protocol', () => {
   it('responds to a version 1 probe', async () => {
     await expect(
       processMessage('{"protocolVersion":1,"requestId":"request-1","operation":"probe"}'),
-    ).resolves.toMatchObject({ requestId: 'request-1', ok: true });
+    ).resolves.toMatchObject({
+      requestId: 'request-1',
+      ok: true,
+      result: { capabilities: ['detect-file', 'extract-zip'] },
+    });
   });
 
   it('rejects malformed JSON without exposing parser details', async () => {
@@ -37,5 +41,43 @@ describe('processor protocol', () => {
     ).toThrowError(
       expect.objectContaining<Partial<ProtocolValidationError>>({ code: 'UNSUPPORTED_OPERATION' }),
     );
+  });
+
+  it('accepts a bounded archive request using only fixed container paths', () => {
+    expect(
+      parseRequest({
+        protocolVersion: 1,
+        requestId: 'archive-1',
+        operation: 'extract-zip',
+        payloadVersion: 1,
+        inputPath: '/input/archive.zip',
+        outputDirectory: '/output/archive',
+        limits: {
+          maximumArchiveBytes: 10,
+          maximumMembers: 10,
+          maximumMemberBytes: 10,
+          maximumExpandedBytes: 10,
+          maximumCompressionRatio: 10,
+        },
+      }),
+    ).toMatchObject({ operation: 'extract-zip' });
+  });
+
+  it('rejects operation-specific fields that could select arbitrary paths', () => {
+    expect(() =>
+      parseRequest({
+        protocolVersion: 1,
+        requestId: 'detect-1',
+        operation: 'detect-file',
+        payloadVersion: 1,
+        inputPath: '/etc/passwd',
+        filename: 'part.stl',
+        limits: {
+          maximumInspectionBytes: 10,
+          maximumStlTriangles: 10,
+          maximumZipEntries: 10,
+        },
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'MALFORMED_REQUEST' }));
   });
 });
