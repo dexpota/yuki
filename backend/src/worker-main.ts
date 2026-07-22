@@ -11,7 +11,7 @@ import {
   CataloguePortabilityService,
   processNextCataloguePortabilityJob,
 } from './catalogue/index.js';
-import type { IdentityDatabaseSchema } from './identity/index.js';
+import { type IdentityDatabaseSchema, readIdentityKey, SecretVault } from './identity/index.js';
 import {
   type ImportDatabaseSchema,
   type LocalImportConfiguration,
@@ -41,15 +41,25 @@ import {
   type Logger,
 } from './platform/observability/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
+import {
+  OctoPrintMonitoringGateway,
+  PrinterDestinationPolicy,
+  type PrinterMonitoringDatabaseSchema,
+  PrinterMonitoringService,
+  PrinterPollScheduler,
+  processNextPrinterPollJob,
+} from './printing/index.js';
 
 export const workerArtifact = 'backend-worker';
 
 export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
-  CataloguePortabilityDatabaseSchema;
+  CataloguePortabilityDatabaseSchema &
+  PrinterMonitoringDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
+  readonly masterKey: Buffer;
   readonly localImport: LocalImportConfiguration;
 }
 
@@ -97,6 +107,15 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
             blobStore,
             { storageBackend: 'local' },
           );
+          const monitoring = new PrinterMonitoringService(
+            database as unknown as Database<PrinterMonitoringDatabaseSchema>,
+            new SecretVault(configuration.masterKey),
+            new PrinterDestinationPolicy(),
+            new OctoPrintMonitoringGateway(),
+          );
+          const printerPolls = new PrinterPollScheduler(
+            database as unknown as Database<PrinterMonitoringDatabaseSchema>,
+          );
           health.addReadinessCheck('database', async () => {
             await sql`select 1`.execute(database as Database<WorkerDatabaseSchema>);
           });
@@ -112,6 +131,8 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               service,
               portabilityOperations,
               portability,
+              monitoring,
+              printerPolls,
               configuration.localImport,
               cancellation.signal,
               logger,
@@ -149,15 +170,23 @@ export function readWorkerCompositionConfiguration(
   const worker = readWorkerConfiguration(environment);
   const issues: string[] = [];
   let database: DatabaseConfiguration | undefined;
+  let masterKey: Buffer | undefined;
   try {
     database = readDatabaseConfiguration(environment);
   } catch (error) {
     if (error instanceof DatabaseConfigurationError) issues.push(...error.issues);
     else throw error;
   }
+  try {
+    masterKey = readIdentityKey(environment.YUKI_MASTER_KEY, 'YUKI_MASTER_KEY');
+  } catch (error) {
+    if (error instanceof TypeError) issues.push(error.message);
+    else throw error;
+  }
   const localImport = readLocalImportConfiguration(environment, issues);
-  if (issues.length > 0 || database === undefined) throw new ConfigurationError(issues);
-  return { ...worker, database, localImport };
+  if (issues.length > 0 || database === undefined || masterKey === undefined)
+    throw new ConfigurationError(issues);
+  return { ...worker, database, masterKey, localImport };
 }
 
 export async function createWorkerDiagnosticsApplication(logger: Logger, health: HealthRegistry) {
@@ -181,11 +210,15 @@ async function runLocalImportWorkerLoop(
   service: LocalImportService,
   portabilityOperations: CataloguePortabilityOperations,
   portability: CataloguePortabilityService,
+  monitoring: PrinterMonitoringService,
+  printerPolls: PrinterPollScheduler,
   configuration: LocalImportConfiguration,
   signal: AbortSignal,
   logger: Logger,
 ): Promise<void> {
   const workerId = `local-import-${randomUUID()}`;
+  await printerPolls.scheduleStartup(workerId);
+  let nextPrinterScheduleAt = Date.now();
   while (!signal.aborted) {
     let processed = false;
     try {
@@ -200,7 +233,16 @@ async function runLocalImportWorkerLoop(
         portability,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
-      processed = localImportProcessed || portabilityProcessed;
+      if (Date.now() >= nextPrinterScheduleAt) {
+        await printerPolls.schedulePeriodic();
+        nextPrinterScheduleAt = Date.now() + 15_000;
+      }
+      const printerPollProcessed = await processNextPrinterPollJob(
+        database as unknown as Database<PrinterMonitoringDatabaseSchema>,
+        monitoring,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
+      processed = localImportProcessed || portabilityProcessed || printerPollProcessed;
     } catch (error) {
       logger.error('local_import_worker_iteration_failed', { error });
     }

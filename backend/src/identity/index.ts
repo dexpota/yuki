@@ -17,4 +17,4 @@ export {
   type SessionPolicy,
   SetupAlreadyCompletedError,
 } from './store.js';
-export { preAuthCookieName, sessionCookieName } from './tokens.js';
+export { preAuthCookieName, readIdentityKey, sessionCookieName } from './tokens.js';

@@ -46,7 +46,15 @@ import {
   type Logger,
 } from './platform/observability/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
-import { type PrinterDatabaseSchema, registerPrinterFeature } from './printing/index.js';
+import {
+  OctoPrintMonitoringGateway,
+  PrinterDestinationPolicy,
+  type PrinterDatabaseSchema,
+  type PrinterMonitoringDatabaseSchema,
+  PrinterMonitoringService,
+  registerPrinterFeature,
+  registerPrinterMonitoringFeature,
+} from './printing/index.js';
 
 export const apiArtifact = 'backend-api';
 
@@ -60,7 +68,7 @@ export interface ApiCompositionConfiguration extends ApiConfiguration {
 export type ApiDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
-  PrinterDatabaseSchema;
+  PrinterMonitoringDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
   readonly createDatabase?: (configuration: DatabaseConfiguration) => Database<ApiDatabaseSchema>;
@@ -180,6 +188,15 @@ export async function createApiApplication(
       database: database as unknown as Database<PrinterDatabaseSchema>,
       identity,
       secrets: identity.secrets,
+    });
+    registerPrinterMonitoringFeature(application, {
+      identity,
+      service: new PrinterMonitoringService(
+        database as unknown as Database<PrinterMonitoringDatabaseSchema>,
+        identity.secrets,
+        new PrinterDestinationPolicy(),
+        new OctoPrintMonitoringGateway(),
+      ),
     });
     installHttpObservability(application, {
       service: apiArtifact,
