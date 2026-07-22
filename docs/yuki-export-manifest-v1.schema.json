@@ -1,0 +1,148 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuki.local/schemas/export-manifest-v1.json",
+  "title": "Yuki model export manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "model",
+    "versions",
+    "assets",
+    "tags",
+    "collections",
+    "generatedArtifacts",
+    "printHistory"
+  ],
+  "properties": {
+    "format": { "const": "yuki-model-export" },
+    "version": { "const": 1 },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "sourceUrl",
+        "creator",
+        "license",
+        "favorite",
+        "currentVersionId",
+        "coverAssetId",
+        "createdAt",
+        "updatedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "description": { "type": "string", "maxLength": 100000 },
+        "sourceUrl": { "type": ["string", "null"], "maxLength": 4096 },
+        "creator": { "type": ["string", "null"], "maxLength": 1000 },
+        "license": { "type": ["string", "null"], "maxLength": 1000 },
+        "favorite": { "type": "boolean" },
+        "currentVersionId": { "$ref": "#/$defs/id" },
+        "coverAssetId": { "oneOf": [{ "$ref": "#/$defs/id" }, { "type": "null" }] },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "versions": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/version" } },
+    "assets": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/asset" } },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+    },
+    "collections": { "type": "array", "items": { "$ref": "#/$defs/collection" } },
+    "generatedArtifacts": {
+      "type": "array",
+      "maxItems": 0,
+      "description": "Reserved. Generated-artifact persistence is not implemented in the v1 application schema."
+    },
+    "printHistory": {
+      "type": "array",
+      "maxItems": 0,
+      "description": "Reserved. Print-history persistence is not implemented in the v1 application schema."
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "timestamp": { "type": "string", "format": "date-time" },
+    "checksum": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "version": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "label",
+        "changeNote",
+        "metadataSchemaVersion",
+        "metadata",
+        "createdAt",
+        "assetIds"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "changeNote": { "type": ["string", "null"], "maxLength": 20000 },
+        "metadataSchemaVersion": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "metadata": { "type": "object" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "assetIds": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/id" }
+        }
+      }
+    },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "versionId",
+        "path",
+        "role",
+        "format",
+        "originalFilename",
+        "detectedMimeType",
+        "byteSize",
+        "sha256",
+        "importedAt"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "versionId": { "$ref": "#/$defs/id" },
+        "path": {
+          "type": "string",
+          "pattern": "^assets/[0-9a-fA-F-]{36}/[^/]+$",
+          "maxLength": 2048
+        },
+        "role": { "enum": ["geometry", "gcode", "image", "document", "other", "original_archive"] },
+        "format": {
+          "enum": ["stl", "3mf", "obj", "step", "gcode", "image", "document", "archive", "other"]
+        },
+        "originalFilename": { "type": "string", "minLength": 1, "maxLength": 1024 },
+        "detectedMimeType": { "type": "string", "minLength": 1, "maxLength": 255 },
+        "byteSize": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "sha256": { "$ref": "#/$defs/checksum" },
+        "importedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "maxLength": 20000 }
+      }
+    }
+  }
+}
