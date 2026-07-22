@@ -86,9 +86,13 @@ integration('catalogue workflows', () => {
       'functional',
       'Test',
     ]);
+    expect(await service.listTags(ownerId)).toEqual(tagged.tags);
+    expect(await service.listTags(otherOwnerId)).toEqual([]);
     expect(tagged.tags.map((tag) => tag.name)).toEqual(['Functional', 'Test']);
 
     const collection = await service.createCollection(ownerId, ' Calibration ', 'Test pieces');
+    expect(await service.listCollections(ownerId)).toEqual([collection]);
+    expect(await service.listCollections(otherOwnerId)).toEqual([]);
     const collected = await service.replaceCollections(ownerId, modelId, [collection.id]);
     expect(collected.collections).toEqual([
       { id: collection.id, name: 'Calibration', description: 'Test pieces' },

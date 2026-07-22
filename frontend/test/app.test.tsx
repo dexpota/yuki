@@ -15,15 +15,22 @@ afterEach(() => {
 beforeEach(() => {
   vi.stubGlobal(
     'fetch',
-    vi.fn().mockResolvedValue(
-      Response.json({
-        authenticated: true,
-        setupRequired: false,
-        owner: { id: 'owner-1', username: 'Owner' },
-        csrfToken: 'csrf-session',
-        expiresAt: '2099-01-01T00:00:00.000Z',
-      }),
-    ),
+    vi.fn().mockImplementation((input: RequestInfo | URL) => {
+      const path = String(input);
+      if (path.startsWith('/api/v1/catalogue/models?'))
+        return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+      if (path === '/api/v1/catalogue/tags' || path === '/api/v1/catalogue/collections')
+        return Promise.resolve(Response.json([]));
+      return Promise.resolve(
+        Response.json({
+          authenticated: true,
+          setupRequired: false,
+          owner: { id: 'owner-1', username: 'Owner' },
+          csrfToken: 'csrf-session',
+          expiresAt: '2099-01-01T00:00:00.000Z',
+        }),
+      );
+    }),
   );
 });
 
@@ -41,7 +48,7 @@ describe('application shell', () => {
   it('renders the routed home page', async () => {
     renderRoute('/');
 
-    expect(await screen.findByRole('heading', { name: /keep every model/i })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your models' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Yuki home' })).toHaveAttribute('href', '/');
   });
 

@@ -1,0 +1,256 @@
+.catalogue-page,
+.model-detail {
+  display: grid;
+  gap: 2rem;
+}
+
+.catalogue-heading,
+.model-detail-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 2rem;
+}
+
+.catalogue-heading h1,
+.model-detail-heading h1 {
+  max-width: none;
+  font-size: 3.5rem;
+}
+
+.catalogue-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1rem;
+  padding: 1.25rem;
+  background: #16211c;
+  border: 1px solid #35433b;
+  border-radius: 0.8rem;
+}
+
+.catalogue-filters label,
+.catalogue-form label,
+.catalogue-inline-form label {
+  display: grid;
+  gap: 0.4rem;
+  color: #cdd8d0;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.catalogue-search {
+  grid-column: span 2;
+}
+
+.catalogue-filters select,
+.catalogue-form select,
+.catalogue-inline-form select,
+.catalogue-form textarea {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  color: #e8eee9;
+  background: #101714;
+  border: 1px solid #415047;
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
+.catalogue-form textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+
+.catalogue-filter-actions {
+  display: flex;
+  align-items: end;
+  gap: 0.65rem;
+}
+
+.secondary-button,
+.favorite-button {
+  color: #e8eee9;
+  background: transparent;
+  border: 1px solid #536259;
+}
+
+.catalogue-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.model-card {
+  display: grid;
+  min-height: 12rem;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  color: #e8eee9;
+  background: #16211c;
+  border: 1px solid #35433b;
+  border-radius: 0.7rem;
+  text-decoration: none;
+}
+
+.model-card:hover {
+  border-color: #79b992;
+  transform: translateY(-2px);
+}
+
+.model-card-icon {
+  color: #9ee2b7;
+  font-size: 1.5rem;
+}
+
+.model-card strong {
+  align-self: end;
+  font-size: 1.25rem;
+}
+
+.model-card span:not(.model-card-icon),
+.model-card small,
+.version-list small {
+  color: #9da9a1;
+}
+
+.load-more {
+  justify-self: center;
+}
+
+.catalogue-status {
+  display: grid;
+  justify-items: start;
+  min-height: 12rem;
+  place-content: center;
+  padding: 2rem;
+  background: #16211c;
+  border: 1px dashed #536259;
+  border-radius: 0.7rem;
+}
+
+.catalogue-back {
+  justify-self: start;
+}
+
+.model-detail-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(22rem, 0.8fr);
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.model-detail-columns > div {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.catalogue-panel {
+  padding: 1.5rem;
+  background: #16211c;
+  border: 1px solid #35433b;
+  border-radius: 0.7rem;
+}
+
+.catalogue-panel h2 {
+  margin-top: 0;
+}
+
+.catalogue-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.catalogue-form > button {
+  justify-self: start;
+}
+
+.catalogue-form-pair,
+.catalogue-inline-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+.catalogue-inline-form {
+  align-items: end;
+  margin: 1rem 0;
+}
+
+.chip-list,
+.asset-list {
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+}
+
+.chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-left: 0.7rem;
+  background: #293a31;
+  border-radius: 999px;
+}
+
+.chip-list button {
+  padding: 0.3rem 0.55rem;
+  color: #e8eee9;
+  background: transparent;
+}
+
+.version-list {
+  display: grid;
+  gap: 1rem;
+  padding-left: 1.5rem;
+}
+
+.version-list > li {
+  padding: 0 0 1rem 0.5rem;
+  border-bottom: 1px solid #35433b;
+}
+
+.version-list > li > div {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+
+.current-version {
+  padding: 0.15rem 0.45rem;
+  color: #9ee2b7;
+  background: #203d2c;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.asset-list li {
+  padding: 0.3rem 0;
+}
+
+.asset-list small {
+  margin-left: 0.4rem;
+}
+
+.danger-panel {
+  border-color: #6b3934;
+}
+
+.danger-button {
+  color: #ffd8d4;
+  background: #6b2722;
+}
+
+.catalogue-error {
+  color: #ffd8d4;
+  font-size: 0.9rem;
+}

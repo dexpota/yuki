@@ -28,6 +28,21 @@ function jsonResponse(body: unknown, init?: ResponseInit) {
   return Response.json(body, init);
 }
 
+function fetchSequence(...sessionResults: readonly (Response | Error)[]) {
+  let sessionIndex = 0;
+  return vi.fn((input: RequestInfo | URL, _init?: RequestInit) => {
+    const path = String(input);
+    if (path.startsWith('/api/v1/catalogue/models?'))
+      return Promise.resolve(jsonResponse({ items: [], nextCursor: null }));
+    if (path === '/api/v1/catalogue/tags' || path === '/api/v1/catalogue/collections')
+      return Promise.resolve(jsonResponse([]));
+    const result = sessionResults[sessionIndex++];
+    if (result instanceof Error) return Promise.reject(result);
+    if (result === undefined) return Promise.reject(new Error(`Unexpected request to ${path}`));
+    return Promise.resolve(result);
+  });
+}
+
 const anonymousSession = {
   authenticated: false,
   setupRequired: false,
@@ -44,12 +59,10 @@ const authenticatedSession = {
 
 describe('identity session flows', () => {
   it('redirects a clean installation to setup and establishes the first session', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        jsonResponse({ ...anonymousSession, setupRequired: true, csrfToken: 'setup-csrf' }),
-      )
-      .mockResolvedValueOnce(jsonResponse(authenticatedSession));
+    const fetchMock = fetchSequence(
+      jsonResponse({ ...anonymousSession, setupRequired: true, csrfToken: 'setup-csrf' }),
+      jsonResponse(authenticatedSession),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { router } = renderRoute('/');
 
@@ -64,9 +77,7 @@ describe('identity session flows', () => {
     });
     fireEvent.click(screen.getByRole('button', { name: 'Create account' }));
 
-    expect(
-      await screen.findByRole('heading', { name: /keep every model ready/i }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Your models' })).toBeInTheDocument();
     expect(fetchMock).toHaveBeenNthCalledWith(
       2,
       '/api/v1/session/setup',
@@ -83,11 +94,11 @@ describe('identity session flows', () => {
   });
 
   it('restores an authenticated session without browser token storage and signs out', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(authenticatedSession))
-      .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(jsonResponse(anonymousSession));
+    const fetchMock = fetchSequence(
+      jsonResponse(authenticatedSession),
+      new Response(null, { status: 204 }),
+      jsonResponse(anonymousSession),
+    );
     vi.stubGlobal('fetch', fetchMock);
     renderRoute('/');
 
@@ -97,12 +108,12 @@ describe('identity session flows', () => {
     expect(
       await screen.findByRole('heading', { name: 'Sign in to your catalogue' }),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      '/api/v1/session',
-      expect.objectContaining({ method: 'DELETE', credentials: 'include' }),
+    const signOutCall = fetchMock.mock.calls.find(
+      (call) =>
+        call[0] === '/api/v1/session' && (call[1] as RequestInit | undefined)?.method === 'DELETE',
     );
-    const headers = (fetchMock.mock.calls[1]?.[1] as RequestInit | undefined)?.headers;
+    expect(signOutCall).toBeDefined();
+    const headers = (signOutCall?.[1] as RequestInit | undefined)?.headers;
     expect(headers).toBeInstanceOf(Headers);
     if (!(headers instanceof Headers)) throw new Error('Expected request headers');
     expect(headers.get('x-csrf-token')).toBe('csrf-session');
@@ -140,10 +151,10 @@ describe('identity session flows', () => {
   });
 
   it('recovers from an API-reported expired session by returning to sign-in', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse(authenticatedSession))
-      .mockResolvedValueOnce(jsonResponse(anonymousSession));
+    const fetchMock = fetchSequence(
+      jsonResponse(authenticatedSession),
+      jsonResponse(anonymousSession),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const { router } = renderRoute('/');
 
@@ -157,10 +168,7 @@ describe('identity session flows', () => {
   });
 
   it('offers a retry when session restoration cannot reach the server', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockRejectedValueOnce(new TypeError('offline'))
-      .mockResolvedValueOnce(jsonResponse(anonymousSession));
+    const fetchMock = fetchSequence(new TypeError('offline'), jsonResponse(anonymousSession));
     vi.stubGlobal('fetch', fetchMock);
     renderRoute('/');
 

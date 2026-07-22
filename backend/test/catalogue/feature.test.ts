@@ -36,10 +36,17 @@ describe('catalogue HTTP authentication boundary', () => {
       url: '/api/v1/catalogue/models/21000000-0000-4000-8000-000000000001',
       payload: { favorite: true },
     });
+    const tags = await application.inject({ method: 'GET', url: '/api/v1/catalogue/tags' });
+    const collections = await application.inject({
+      method: 'GET',
+      url: '/api/v1/catalogue/collections',
+    });
 
     expect(read.statusCode).toBe(401);
     expect(read.json().error.code).toBe('authentication_required');
     expect(mutation.statusCode).toBe(401);
     expect(mutation.json().error.code).toBe('authentication_required');
+    expect(tags.statusCode).toBe(401);
+    expect(collections.statusCode).toBe(401);
   });
 });

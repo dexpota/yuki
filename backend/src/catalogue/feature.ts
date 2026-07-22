@@ -103,6 +103,14 @@ export function registerCatalogueFeature(
     return call(() => service.replaceTags(ownerId(request), pathId(request, 'modelId'), names));
   });
 
+  application.get('/api/v1/catalogue/tags', authenticated, async (request) =>
+    call(() => service.listTags(ownerId(request))),
+  );
+
+  application.get('/api/v1/catalogue/collections', authenticated, async (request) =>
+    call(() => service.listCollections(ownerId(request))),
+  );
+
   application.post('/api/v1/catalogue/collections', authenticated, async (request, reply) => {
     const body = objectBody(request.body);
     const result = await call(() =>

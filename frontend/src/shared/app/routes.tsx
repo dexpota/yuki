@@ -1,16 +1,7 @@
 import { isRouteErrorResponse, Link, type RouteObject, useRouteError } from 'react-router';
+import { CataloguePage, ModelPage } from '../../catalogue/index.js';
 import { SessionGate } from '../../settings/identity/session.js';
 import { AppShell } from './AppShell.js';
-
-function WelcomePage() {
-  return (
-    <section className="welcome">
-      <p className="eyebrow">Your print library</p>
-      <h1>Keep every model ready for its next print.</h1>
-      <p>Catalogue, import, and printing features will appear here as they are added.</p>
-    </section>
-  );
-}
 
 function NotFoundPage() {
   return (
@@ -49,7 +40,8 @@ export const routes: RouteObject[] = [
         path: '/',
         element: <AppShell />,
         children: [
-          { index: true, element: <WelcomePage /> },
+          { index: true, element: <CataloguePage /> },
+          { path: 'catalogue/models/:modelId', element: <ModelPage /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

@@ -324,6 +324,24 @@ export class CatalogueService {
     return this.getModel(ownerId, modelId);
   }
 
+  public async listTags(ownerId: string): Promise<readonly TagRecord[]> {
+    return this.database
+      .selectFrom('catalogue_tags')
+      .select(['id', 'name'])
+      .where('owner_id', '=', ownerId)
+      .orderBy('normalized_name', 'asc')
+      .execute();
+  }
+
+  public async listCollections(ownerId: string): Promise<readonly CollectionRecord[]> {
+    return this.database
+      .selectFrom('catalogue_collections')
+      .select(['id', 'name', 'description', 'created_at', 'updated_at'])
+      .where('owner_id', '=', ownerId)
+      .orderBy('normalized_name', 'asc')
+      .execute();
+  }
+
   public async createCollection(
     ownerId: string,
     name: string,
@@ -645,4 +663,8 @@ export interface CollectionRecord {
   readonly description: string;
   readonly created_at: Date;
   readonly updated_at: Date;
+}
+export interface TagRecord {
+  readonly id: string;
+  readonly name: string;
 }
