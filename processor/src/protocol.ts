@@ -6,8 +6,16 @@ import {
   detectionProcessorOperation,
 } from './detection/index.js';
 import {
-  type GeneratePreviewRequest,
+  type GcodeParseLimits,
+  gcodeFactsInputPath,
+  gcodeFactsOperation,
+  gcodeFactsPayloadVersion,
+  type ParseGcodeFactsRequest,
+  type ParseGcodeFactsResult,
+} from './gcode/index.js';
+import {
   type GeneratedPreviewDescriptor,
+  type GeneratePreviewRequest,
   type PreviewDimensions,
   type PreviewLimits,
   previewInputPath,
@@ -37,11 +45,17 @@ export type PreviewProtocolRequest = GeneratePreviewRequest & {
   readonly requestId: string;
 };
 
+export type GcodeFactsProtocolRequest = ParseGcodeFactsRequest & {
+  readonly protocolVersion: typeof PROCESSOR_PROTOCOL_VERSION;
+  readonly requestId: string;
+};
+
 export type ProcessorRequest =
   | ProbeRequest
   | ArchiveProtocolRequest
   | DetectFileRequest
-  | PreviewProtocolRequest;
+  | PreviewProtocolRequest
+  | GcodeFactsProtocolRequest;
 
 export interface ProcessorSuccess<TResult = ProbeResult> {
   readonly protocolVersion: typeof PROCESSOR_PROTOCOL_VERSION;
@@ -92,7 +106,8 @@ export type ProcessorOperationResult =
   | ProbeResult
   | ExtractArchiveResult
   | DetectionResult
-  | PreviewProtocolResult;
+  | PreviewProtocolResult
+  | ParseGcodeFactsResult;
 export type ProcessorResponse = ProcessorSuccess<ProcessorOperationResult> | ProcessorFailure;
 
 export class ProtocolValidationError extends Error {
@@ -129,11 +144,38 @@ export function parseRequest(value: unknown): ProcessorRequest {
   if (value.operation === detectionProcessorOperation)
     return parseDetection(value, value.requestId);
   if (value.operation === previewOperation) return parsePreview(value, value.requestId);
+  if (value.operation === gcodeFactsOperation) return parseGcodeFacts(value, value.requestId);
   throw new ProtocolValidationError(
     'UNSUPPORTED_OPERATION',
     'The requested operation is not supported.',
     value.requestId,
   );
+}
+
+function parseGcodeFacts(
+  value: Record<string, unknown>,
+  requestId: string,
+): GcodeFactsProtocolRequest {
+  exactKeys(value, ['protocolVersion', 'requestId', 'operation', 'payload'], requestId);
+  if (!isRecord(value.payload)) malformedOperation(requestId);
+  const payload = value.payload as Record<string, unknown>;
+  exactKeys(payload, ['version', 'inputPath', 'limits'], requestId);
+  if (
+    payload.version !== gcodeFactsPayloadVersion ||
+    payload.inputPath !== gcodeFactsInputPath ||
+    !gcodeLimits(payload.limits)
+  )
+    malformedOperation(requestId);
+  return {
+    protocolVersion: PROCESSOR_PROTOCOL_VERSION,
+    requestId,
+    operation: gcodeFactsOperation,
+    payload: {
+      version: gcodeFactsPayloadVersion,
+      inputPath: gcodeFactsInputPath,
+      limits: payload.limits,
+    },
+  };
 }
 
 function parsePreview(value: Record<string, unknown>, requestId: string): PreviewProtocolRequest {
@@ -277,6 +319,19 @@ function previewLimits(value: unknown): value is PreviewLimits {
       'maximumTriangles',
       'maximumLayers',
       'maximumSegments',
+    ])
+  );
+}
+
+function gcodeLimits(value: unknown): value is GcodeParseLimits {
+  return (
+    isRecord(value) &&
+    exactPositiveIntegerFields(value, [
+      'maximumInputBytes',
+      'maximumLines',
+      'maximumLineBytes',
+      'maximumSegments',
+      'maximumMetadataEntries',
     ])
   );
 }

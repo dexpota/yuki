@@ -1,7 +1,9 @@
+import { readFile, stat } from 'node:fs/promises';
 import { stdin, stdout } from 'node:process';
 
 import { ArchiveRejectedError, extractArchive } from './archive/index.js';
 import { DetectionLimitError, detectAsset, FileRandomAccessInput } from './detection/index.js';
+import { GcodeParseError, gcodeFactsOperation, parseGcodeFacts } from './gcode/index.js';
 import { generatePreviewFiles, PreviewLimitError, previewOperation } from './preview/index.js';
 import {
   failureFrom,
@@ -39,7 +41,7 @@ export async function processMessage(message: string): Promise<ProcessorResponse
     if (request.operation === 'probe') {
       return success(request.requestId, {
         processorVersion: PROCESSOR_VERSION,
-        capabilities: ['detect-file', 'extract-zip', previewOperation],
+        capabilities: ['detect-file', 'extract-zip', previewOperation, gcodeFactsOperation],
       });
     }
     if (request.operation === 'extract-zip') {
@@ -55,6 +57,15 @@ export async function processMessage(message: string): Promise<ProcessorResponse
           request.payload.limits,
         ),
       );
+    }
+    if (request.operation === gcodeFactsOperation) {
+      const metadata = await stat(request.payload.inputPath);
+      if (!metadata.isFile() || metadata.size > request.payload.limits.maximumInputBytes)
+        throw new GcodeParseError('input-too-large');
+      return success(request.requestId, {
+        status: 'ready',
+        facts: parseGcodeFacts(await readFile(request.payload.inputPath), request.payload.limits),
+      });
     }
 
     const input = await FileRandomAccessInput.open(request.inputPath);
@@ -79,6 +90,13 @@ export async function processMessage(message: string): Promise<ProcessorResponse
         request.requestId,
         'The preview could not be generated within the configured limits.',
         'preview_limit',
+      );
+    }
+    if (error instanceof GcodeParseError) {
+      return processingFailure(
+        request.requestId,
+        error.message,
+        `gcode_${error.code.replaceAll('-', '_')}`,
       );
     }
     return processingFailure(

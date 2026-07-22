@@ -10,7 +10,9 @@ describe('processor protocol', () => {
     ).resolves.toMatchObject({
       requestId: 'request-1',
       ok: true,
-      result: { capabilities: ['detect-file', 'extract-zip', 'generate-preview'] },
+      result: {
+        capabilities: ['detect-file', 'extract-zip', 'generate-preview', 'parse-gcode-facts'],
+      },
     });
   });
 
@@ -102,5 +104,28 @@ describe('processor protocol', () => {
         },
       }),
     ).toMatchObject({ operation: 'generate-preview', payload: { format: 'stl' } });
+  });
+
+  it('accepts G-code facts only through the fixed input path', () => {
+    const request = {
+      protocolVersion: 1,
+      requestId: 'gcode-1',
+      operation: 'parse-gcode-facts',
+      payload: {
+        version: 1,
+        inputPath: '/input/source',
+        limits: {
+          maximumInputBytes: 100,
+          maximumLines: 10,
+          maximumLineBytes: 20,
+          maximumSegments: 10,
+          maximumMetadataEntries: 10,
+        },
+      },
+    };
+    expect(parseRequest(request)).toMatchObject({ operation: 'parse-gcode-facts' });
+    expect(() =>
+      parseRequest({ ...request, payload: { ...request.payload, inputPath: '/etc/passwd' } }),
+    ).toThrowError(expect.objectContaining({ code: 'MALFORMED_REQUEST' }));
   });
 });
