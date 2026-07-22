@@ -2,7 +2,11 @@ import { pathToFileURL } from 'node:url';
 
 import { sql } from 'kysely';
 
-import { type CatalogueDatabaseSchema, registerCatalogueFeature } from './catalogue/index.js';
+import {
+  type CatalogueDatabaseSchema,
+  registerCatalogueFeature,
+  registerCatalogueSearchFeature,
+} from './catalogue/index.js';
 import {
   createIdentityCsrfTokenSource,
   type IdentityDatabaseSchema,
@@ -134,6 +138,10 @@ export async function createApiApplication(
       cookie: { secure: configuration.environment === 'production' },
     });
     registerCatalogueFeature(application, {
+      database: database as unknown as Database<CatalogueDatabaseSchema>,
+      identity,
+    });
+    registerCatalogueSearchFeature(application, {
       database: database as unknown as Database<CatalogueDatabaseSchema>,
       identity,
     });

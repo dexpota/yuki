@@ -28,6 +28,7 @@ export type {
   CatalogueSchema,
   CatalogueTagTable,
 } from './schema.js';
+export * from './search/index.js';
 export {
   type CatalogueAssetInput,
   CatalogueConflictError,
