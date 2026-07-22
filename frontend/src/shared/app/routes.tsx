@@ -1,6 +1,7 @@
 import { isRouteErrorResponse, Link, type RouteObject, useRouteError } from 'react-router';
 import { CataloguePage, ModelPage } from '../../catalogue/index.js';
-import { SessionGate } from '../../settings/identity/session.js';
+import { SessionGate, useSession } from '../../settings/identity/session.js';
+import { InstallationSettingsPage } from '../../settings/installation/index.js';
 import { AppShell } from './AppShell.js';
 
 function NotFoundPage() {
@@ -29,6 +30,12 @@ function RouteErrorPage() {
   );
 }
 
+function InstallationSettingsRoute() {
+  const session = useSession();
+  if (session.data?.authenticated !== true) return null;
+  return <InstallationSettingsPage csrfToken={session.data.csrfToken} />;
+}
+
 export const routes: RouteObject[] = [
   {
     element: <SessionGate />,
@@ -42,6 +49,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <CataloguePage /> },
           { path: 'catalogue/models/:modelId', element: <ModelPage /> },
+          { path: 'settings', element: <InstallationSettingsRoute /> },
           { path: '*', element: <NotFoundPage /> },
         ],
       },

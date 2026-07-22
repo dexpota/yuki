@@ -14,10 +14,16 @@ export function AppShell() {
         </NavLink>
         <span className="app-purpose">3D print catalogue</span>
         {session.data?.authenticated === true ? (
-          <div className="owner-session">
-            <span>{session.data.owner.username}</span>
-            <SignOutButton session={session.data} />
-          </div>
+          <>
+            <nav aria-label="Application">
+              <NavLink to="/">Catalogue</NavLink>
+              <NavLink to="/settings">Settings</NavLink>
+            </nav>
+            <div className="owner-session">
+              <span>{session.data.owner.username}</span>
+              <SignOutButton session={session.data} />
+            </div>
+          </>
         ) : null}
       </header>
       <main className="app-content">

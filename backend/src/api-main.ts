@@ -48,13 +48,14 @@ import {
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 import {
   OctoPrintMonitoringGateway,
-  PrinterDestinationPolicy,
   type PrinterDatabaseSchema,
+  PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
   registerPrinterFeature,
   registerPrinterMonitoringFeature,
 } from './printing/index.js';
+import { registerSettingsFeature, type SettingsDatabaseSchema } from './settings/index.js';
 
 export const apiArtifact = 'backend-api';
 
@@ -68,7 +69,8 @@ export interface ApiCompositionConfiguration extends ApiConfiguration {
 export type ApiDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
-  PrinterMonitoringDatabaseSchema;
+  PrinterMonitoringDatabaseSchema &
+  SettingsDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
   readonly createDatabase?: (configuration: DatabaseConfiguration) => Database<ApiDatabaseSchema>;
@@ -151,6 +153,10 @@ export async function createApiApplication(
       csrfKey: configuration.identityKeys.csrfKey,
       masterKey: configuration.identityKeys.masterKey,
       cookie: { secure: configuration.environment === 'production' },
+    });
+    registerSettingsFeature(application, {
+      database: database as unknown as Database<SettingsDatabaseSchema>,
+      identity,
     });
     registerCatalogueFeature(application, {
       database: database as unknown as Database<CatalogueDatabaseSchema>,
