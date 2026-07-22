@@ -5,6 +5,16 @@ import {
   detectionPayloadVersion,
   detectionProcessorOperation,
 } from './detection/index.js';
+import {
+  type GeneratePreviewRequest,
+  type GeneratedPreviewDescriptor,
+  type PreviewDimensions,
+  type PreviewLimits,
+  previewInputPath,
+  previewOperation,
+  previewOutputDirectory,
+  previewPayloadVersion,
+} from './preview/index.js';
 
 export const PROCESSOR_PROTOCOL_VERSION = 1 as const;
 export const MAX_MESSAGE_BYTES = 64 * 1024;
@@ -22,7 +32,16 @@ export type ArchiveProtocolRequest = ExtractArchiveRequest & {
   readonly payloadVersion: 1;
 };
 
-export type ProcessorRequest = ProbeRequest | ArchiveProtocolRequest | DetectFileRequest;
+export type PreviewProtocolRequest = GeneratePreviewRequest & {
+  readonly protocolVersion: typeof PROCESSOR_PROTOCOL_VERSION;
+  readonly requestId: string;
+};
+
+export type ProcessorRequest =
+  | ProbeRequest
+  | ArchiveProtocolRequest
+  | DetectFileRequest
+  | PreviewProtocolRequest;
 
 export interface ProcessorSuccess<TResult = ProbeResult> {
   readonly protocolVersion: typeof PROCESSOR_PROTOCOL_VERSION;
@@ -57,7 +76,23 @@ export interface ProcessorFailure {
   };
 }
 
-export type ProcessorOperationResult = ProbeResult | ExtractArchiveResult | DetectionResult;
+export type PreviewProtocolResult =
+  | {
+      readonly status: 'ready';
+      readonly kind: 'geometry' | 'toolpath';
+      readonly files: readonly GeneratedPreviewDescriptor[];
+      readonly dimensions?: PreviewDimensions;
+      readonly triangleCount?: number;
+      readonly layerCount?: number;
+      readonly segmentCount?: number;
+    }
+  | { readonly status: 'unsupported' | 'failed'; readonly reason: string };
+
+export type ProcessorOperationResult =
+  | ProbeResult
+  | ExtractArchiveResult
+  | DetectionResult
+  | PreviewProtocolResult;
 export type ProcessorResponse = ProcessorSuccess<ProcessorOperationResult> | ProcessorFailure;
 
 export class ProtocolValidationError extends Error {
@@ -93,11 +128,39 @@ export function parseRequest(value: unknown): ProcessorRequest {
   if (value.operation === 'extract-zip') return parseArchive(value, value.requestId);
   if (value.operation === detectionProcessorOperation)
     return parseDetection(value, value.requestId);
+  if (value.operation === previewOperation) return parsePreview(value, value.requestId);
   throw new ProtocolValidationError(
     'UNSUPPORTED_OPERATION',
     'The requested operation is not supported.',
     value.requestId,
   );
+}
+
+function parsePreview(value: Record<string, unknown>, requestId: string): PreviewProtocolRequest {
+  exactKeys(value, ['protocolVersion', 'requestId', 'operation', 'payload'], requestId);
+  if (!isRecord(value.payload)) malformedOperation(requestId);
+  const payload = value.payload as Record<string, unknown>;
+  exactKeys(payload, ['version', 'inputPath', 'outputDirectory', 'format', 'limits'], requestId);
+  if (
+    payload.version !== previewPayloadVersion ||
+    payload.inputPath !== previewInputPath ||
+    payload.outputDirectory !== previewOutputDirectory ||
+    !['stl', '3mf', 'obj', 'step', 'gcode'].includes(String(payload.format)) ||
+    !previewLimits(payload.limits)
+  )
+    malformedOperation(requestId);
+  return {
+    protocolVersion: PROCESSOR_PROTOCOL_VERSION,
+    requestId,
+    operation: previewOperation,
+    payload: {
+      version: previewPayloadVersion,
+      inputPath: previewInputPath,
+      outputDirectory: previewOutputDirectory,
+      format: payload.format as PreviewProtocolRequest['payload']['format'],
+      limits: payload.limits,
+    },
+  };
 }
 
 function parseProbe(value: Record<string, unknown>, requestId: string): ProbeRequest {
@@ -201,6 +264,19 @@ function detectionLimits(value: unknown): value is DetectFileRequest['limits'] {
       'maximumInspectionBytes',
       'maximumStlTriangles',
       'maximumZipEntries',
+    ])
+  );
+}
+
+function previewLimits(value: unknown): value is PreviewLimits {
+  return (
+    isRecord(value) &&
+    exactPositiveIntegerFields(value, [
+      'maximumInputBytes',
+      'maximumOutputBytes',
+      'maximumTriangles',
+      'maximumLayers',
+      'maximumSegments',
     ])
   );
 }

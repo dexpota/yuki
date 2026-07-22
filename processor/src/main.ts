@@ -2,6 +2,7 @@ import { stdin, stdout } from 'node:process';
 
 import { ArchiveRejectedError, extractArchive } from './archive/index.js';
 import { DetectionLimitError, detectAsset, FileRandomAccessInput } from './detection/index.js';
+import { generatePreviewFiles, PreviewLimitError, previewOperation } from './preview/index.js';
 import {
   failureFrom,
   MAX_MESSAGE_BYTES,
@@ -38,11 +39,22 @@ export async function processMessage(message: string): Promise<ProcessorResponse
     if (request.operation === 'probe') {
       return success(request.requestId, {
         processorVersion: PROCESSOR_VERSION,
-        capabilities: ['detect-file', 'extract-zip'],
+        capabilities: ['detect-file', 'extract-zip', previewOperation],
       });
     }
     if (request.operation === 'extract-zip') {
       return success(request.requestId, await extractArchive(request));
+    }
+    if (request.operation === previewOperation) {
+      return success(
+        request.requestId,
+        await generatePreviewFiles(
+          request.payload.inputPath,
+          request.payload.outputDirectory,
+          request.payload.format,
+          request.payload.limits,
+        ),
+      );
     }
 
     const input = await FileRandomAccessInput.open(request.inputPath);
@@ -60,6 +72,13 @@ export async function processMessage(message: string): Promise<ProcessorResponse
         request.requestId,
         'The file could not be inspected within the configured limits.',
         'detection_limit',
+      );
+    }
+    if (error instanceof PreviewLimitError) {
+      return processingFailure(
+        request.requestId,
+        'The preview could not be generated within the configured limits.',
+        'preview_limit',
       );
     }
     return processingFailure(

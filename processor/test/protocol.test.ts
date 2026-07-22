@@ -10,7 +10,7 @@ describe('processor protocol', () => {
     ).resolves.toMatchObject({
       requestId: 'request-1',
       ok: true,
-      result: { capabilities: ['detect-file', 'extract-zip'] },
+      result: { capabilities: ['detect-file', 'extract-zip', 'generate-preview'] },
     });
   });
 
@@ -79,5 +79,28 @@ describe('processor protocol', () => {
         },
       }),
     ).toThrowError(expect.objectContaining({ code: 'MALFORMED_REQUEST' }));
+  });
+
+  it('accepts preview generation only through fixed container paths', () => {
+    expect(
+      parseRequest({
+        protocolVersion: 1,
+        requestId: 'preview-1',
+        operation: 'generate-preview',
+        payload: {
+          version: 1,
+          inputPath: '/input/source',
+          outputDirectory: '/output/preview',
+          format: 'stl',
+          limits: {
+            maximumInputBytes: 100,
+            maximumOutputBytes: 100,
+            maximumTriangles: 10,
+            maximumLayers: 10,
+            maximumSegments: 10,
+          },
+        },
+      }),
+    ).toMatchObject({ operation: 'generate-preview', payload: { format: 'stl' } });
   });
 });

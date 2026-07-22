@@ -15,6 +15,7 @@ export {
   publishVersion,
 } from './persistence.js';
 export * from './portability/index.js';
+export * from './previews/index.js';
 export type {
   CatalogueAssetFormat,
   CatalogueAssetRole,

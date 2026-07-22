@@ -1,0 +1,38 @@
+.model-preview {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.model-preview canvas {
+  width: 100%;
+  max-height: 65vh;
+  border: 1px solid #cad4dd;
+  border-radius: 0.75rem;
+  cursor: grab;
+  touch-action: none;
+}
+
+.model-preview canvas:active {
+  cursor: grabbing;
+}
+
+.model-preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.model-preview-controls span {
+  margin-inline-start: auto;
+  color: #455d70;
+  font-variant-numeric: tabular-nums;
+}
+
+.model-preview-notice {
+  padding: 2rem;
+  border: 1px dashed #9badba;
+  border-radius: 0.75rem;
+  color: #455d70;
+  text-align: center;
+}
