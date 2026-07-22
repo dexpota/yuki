@@ -29,7 +29,7 @@ describe('restricted processor runner', () => {
       },
       {
         hostPath: '/var/lib/yuki/staging/request-1/output',
-        containerPath: '/output/result',
+        containerPath: '/output',
         writable: true,
       },
     ]);
@@ -46,15 +46,36 @@ describe('restricted processor runner', () => {
         '--cpus',
         '--tmpfs',
         'type=bind,source=/var/lib/yuki/staging/request-1/source.stl,target=/input/source.stl,readonly',
-        'type=bind,source=/var/lib/yuki/staging/request-1/output,target=/output/result',
+        'type=bind,source=/var/lib/yuki/staging/request-1/output,target=/output',
       ]),
     );
+  });
+
+  it('accepts an immutable local image ID and rejects mutable tags', () => {
+    expect(() =>
+      buildDockerArguments({ ...configuration, image: `sha256:${'b'.repeat(64)}` }),
+    ).not.toThrow();
+    expect(() =>
+      buildDockerArguments({ ...configuration, image: 'yuki-processor:latest' }),
+    ).toThrow('Processor image must be pinned by sha256 digest.');
   });
 
   it('rejects writable input mounts and traversal targets', () => {
     expect(() =>
       buildDockerArguments(configuration, [
         { hostPath: '/tmp/source', containerPath: '/input/../escape', writable: true },
+      ]),
+    ).toThrow('Processor file mount is invalid.');
+  });
+
+  it('allows only the fixed writable output parent needed for fresh child destinations', () => {
+    const arguments_ = buildDockerArguments(configuration, [
+      { hostPath: '/var/lib/yuki/request/output', containerPath: '/output', writable: true },
+    ]);
+    expect(arguments_).toContain('type=bind,source=/var/lib/yuki/request/output,target=/output');
+    expect(() =>
+      buildDockerArguments(configuration, [
+        { hostPath: '/tmp/output', containerPath: '/work/output', writable: true } as never,
       ]),
     ).toThrow('Processor file mount is invalid.');
   });

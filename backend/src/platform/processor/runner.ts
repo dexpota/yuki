@@ -40,7 +40,7 @@ export interface ProcessorRunnerDependencies {
 
 export interface ProcessorFileMount {
   readonly hostPath: string;
-  readonly containerPath: `/input/${string}` | `/output/${string}`;
+  readonly containerPath: `/input/${string}` | '/output' | `/output/${string}`;
   readonly writable: boolean;
 }
 
@@ -179,7 +179,7 @@ export function buildDockerArguments(
 }
 
 function validateConfiguration(configuration: ProcessorRunnerConfiguration): void {
-  if (!/@sha256:[a-f0-9]{64}$/.test(configuration.image)) {
+  if (!/(?:@sha256:|^sha256:)[a-f0-9]{64}$/.test(configuration.image)) {
     throw new Error('Processor image must be pinned by sha256 digest.');
   }
   if (
@@ -202,7 +202,9 @@ function validateMounts(mounts: readonly ProcessorFileMount[]): void {
   const targets = new Set<string>();
   for (const mount of mounts) {
     const normalizedTarget = posix.normalize(mount.containerPath);
-    const targetIsAllowed = /^\/(input|output)\/[A-Za-z0-9._/-]+$/.test(mount.containerPath);
+    const targetIsAllowed =
+      mount.containerPath === '/output' ||
+      /^\/(input|output)\/[A-Za-z0-9._/-]+$/.test(mount.containerPath);
     const isInput = mount.containerPath.startsWith('/input/');
     const modeIsAllowed = (isInput && !mount.writable) || (!isInput && mount.writable);
     if (

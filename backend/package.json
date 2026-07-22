@@ -9,6 +9,7 @@
     "migrate:down": "node dist/platform/database/migrate-main.js down",
     "start:api": "node dist/api-main.js",
     "start:worker": "node dist/worker-main.js",
+    "start:processor-supervisor": "node dist/processor-supervisor-main.js",
     "typecheck": "tsc --project tsconfig.json --noEmit",
     "test": "vitest run"
   },

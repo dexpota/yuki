@@ -149,12 +149,19 @@ services:
       YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES: ${YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES:-1048576}
       YUKI_IMPORT_POLL_INTERVAL_MS: ${YUKI_IMPORT_POLL_INTERVAL_MS:-1000}
       YUKI_IMPORT_JOB_LEASE_MS: ${YUKI_IMPORT_JOB_LEASE_MS:-30000}
+      YUKI_PROCESSOR_SOCKET: /run/yuki-processor/processor.sock
+      YUKI_PROCESSOR_TOKEN: ${YUKI_PROCESSOR_TOKEN:-ZGV2ZWxvcG1lbnQtb25seS1wcm9jZXNzb3ItdG9rZW4=}
+      YUKI_PROCESSOR_RESPONSE_ROOT: /tmp/yuki-processor-responses
     networks:
       - data
     volumes:
       - type: volume
         source: storage_data
         target: /data/yuki
+      - type: bind
+        source: ./run
+        target: /run/yuki-processor
+        read_only: true
     depends_on:
       migrate:
         condition: service_completed_successfully

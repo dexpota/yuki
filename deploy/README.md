@@ -2,7 +2,9 @@
 
 This directory owns Yuki's Docker Compose development deployment. It starts the
 Vite web application, API, import worker, PostgreSQL, and Caddy. A one-shot
-service applies pending migrations before the API and worker start.
+service applies pending migrations before the API and worker start. A narrow
+host-side supervisor runs untrusted file processing without exposing the Docker
+socket to application containers.
 
 ## Start
 
@@ -13,6 +15,16 @@ are intended for development.
 ```sh
 cd deploy
 cp .env.example .env
+cd ..
+docker build --file processor/Dockerfile --tag yuki-processor:development .
+pnpm --filter @yuki/backend build
+./deploy/start-processor-supervisor.sh
+```
+
+Keep the supervisor running, then start Compose in a second terminal:
+
+```sh
+cd deploy
 docker compose up --detach --build
 docker compose ps
 ```
@@ -57,6 +69,7 @@ assets, and proxy state.
 | `YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES` | `1048576` | Uploaded bytes between durable progress updates |
 | `YUKI_IMPORT_POLL_INTERVAL_MS` | `1000` | Delay while the import-job queue is empty |
 | `YUKI_IMPORT_JOB_LEASE_MS` | `30000` | Lease duration for one claimed import job |
+| `YUKI_PROCESSOR_TOKEN` | Development-only fixed token | Authenticates worker requests to the host processor supervisor; replace and keep stable |
 
 PostgreSQL credentials are composed into the internal database URL. If a
 username or password contains URL-reserved characters, percent-encode them in
@@ -66,6 +79,13 @@ The checked-in keys are only convenient local-development defaults. Generate
 independent replacements with `openssl rand -base64 32` before exposing Yuki to
 another machine. Changing the master key after storing encrypted secrets makes
 those secrets unreadable.
+
+The processor token must contain at least 32 bytes and must match in the host
+supervisor and worker environments. `deploy/run` contains only the Unix socket;
+it is mounted read-only into the worker. The API and worker never receive
+`/var/run/docker.sock`. The supervisor resolves the locally built processor to
+its immutable image ID before invoking it. See
+`docs/ADR-0003-import-processor-deployment.md` for the security boundary.
 
 The `postgres_data` and `storage_data` named volumes are the durable application
 state. `proxy_data` and `proxy_config` retain Caddy state. The `application` and
