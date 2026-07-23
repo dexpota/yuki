@@ -18,5 +18,10 @@ export {
   requestPreviewGeneration,
 } from './operations.js';
 export { CataloguePreviewService } from './service.js';
+export {
+  defaultSupervisorPreviewGeneratorOptions,
+  SupervisorPreviewGenerator,
+  type SupervisorPreviewGeneratorOptions,
+} from './supervisor.js';
 export type { ArtifactCompletion } from './workflow.js';
 export { mayStartArtifact, sanitizedCompletion } from './workflow.js';

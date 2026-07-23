@@ -9,15 +9,21 @@ import {
   type CataloguePortabilityDatabaseSchema,
   CataloguePortabilityOperations,
   CataloguePortabilityService,
+  CataloguePreviewService,
+  type PreviewDatabaseSchema,
   processNextCataloguePortabilityJob,
+  processNextPreviewJob,
+  SupervisorPreviewGenerator,
 } from './catalogue/index.js';
 import { type IdentityDatabaseSchema, readIdentityKey, SecretVault } from './identity/index.js';
 import {
   type ImportDatabaseSchema,
   type LocalImportConfiguration,
+  LocalImportPipeline,
   LocalImportService,
   processNextLocalImportJob,
   readLocalImportConfiguration,
+  SupervisorImportContentProcessor,
 } from './importing/index.js';
 import {
   ConfigurationError,
@@ -40,6 +46,11 @@ import {
   installHttpObservability,
   type Logger,
 } from './platform/observability/index.js';
+import {
+  ProcessorSupervisorClient,
+  type ProcessorSupervisorClientConfiguration,
+  readProcessorSupervisorClientConfiguration,
+} from './platform/processor/supervisor/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 import {
   OctoPrintMonitoringGateway,
@@ -55,12 +66,14 @@ export const workerArtifact = 'backend-worker';
 export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
-  PrinterMonitoringDatabaseSchema;
+  PrinterMonitoringDatabaseSchema &
+  PreviewDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
   readonly masterKey: Buffer;
   readonly localImport: LocalImportConfiguration;
+  readonly processor: ProcessorSupervisorClientConfiguration;
 }
 
 export interface WorkerEntrypointDependencies extends EntrypointDependencies {
@@ -96,6 +109,12 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               progressIntervalBytes: configuration.localImport.progressIntervalBytes,
             },
           );
+          const processorClient = new ProcessorSupervisorClient(configuration.processor);
+          const importPipeline = new LocalImportPipeline(
+            database as unknown as Database<ImportDatabaseSchema>,
+            blobStore,
+            new SupervisorImportContentProcessor(processorClient),
+          );
           const portabilityOperations = new CataloguePortabilityOperations(
             database as unknown as Database<CataloguePortabilityDatabaseSchema>,
             blobStore,
@@ -107,6 +126,10 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
             blobStore,
             { storageBackend: 'local' },
           );
+          const previews = new CataloguePreviewService(
+            database as unknown as Database<PreviewDatabaseSchema>,
+          );
+          const previewGenerator = new SupervisorPreviewGenerator(processorClient);
           const monitoring = new PrinterMonitoringService(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
             new SecretVault(configuration.masterKey),
@@ -129,8 +152,12 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
             workerLoop = runLocalImportWorkerLoop(
               database as Database<WorkerDatabaseSchema>,
               service,
+              importPipeline,
               portabilityOperations,
               portability,
+              previews,
+              previewGenerator,
+              blobStore,
               monitoring,
               printerPolls,
               configuration.localImport,
@@ -184,9 +211,21 @@ export function readWorkerCompositionConfiguration(
     else throw error;
   }
   const localImport = readLocalImportConfiguration(environment, issues);
-  if (issues.length > 0 || database === undefined || masterKey === undefined)
+  let processor: ProcessorSupervisorClientConfiguration | undefined;
+  try {
+    processor = readProcessorSupervisorClientConfiguration(environment);
+  } catch (error) {
+    if (error instanceof TypeError) issues.push(error.message);
+    else throw error;
+  }
+  if (
+    issues.length > 0 ||
+    database === undefined ||
+    masterKey === undefined ||
+    processor === undefined
+  )
     throw new ConfigurationError(issues);
-  return { ...worker, database, masterKey, localImport };
+  return { ...worker, database, masterKey, localImport, processor };
 }
 
 export async function createWorkerDiagnosticsApplication(logger: Logger, health: HealthRegistry) {
@@ -208,8 +247,12 @@ function readDiagnosticsPort(environment: NodeJS.ProcessEnv): number {
 async function runLocalImportWorkerLoop(
   database: Database<WorkerDatabaseSchema>,
   service: LocalImportService,
+  importPipeline: LocalImportPipeline,
   portabilityOperations: CataloguePortabilityOperations,
   portability: CataloguePortabilityService,
+  previews: CataloguePreviewService,
+  previewGenerator: SupervisorPreviewGenerator,
+  blobStore: BlobStore,
   monitoring: PrinterMonitoringService,
   printerPolls: PrinterPollScheduler,
   configuration: LocalImportConfiguration,
@@ -225,12 +268,19 @@ async function runLocalImportWorkerLoop(
       const localImportProcessed = await processNextLocalImportJob(
         database as unknown as Database<ImportDatabaseSchema>,
         service,
-        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs, pipeline: importPipeline },
       );
       const portabilityProcessed = await processNextCataloguePortabilityJob(
         database as unknown as Database<CataloguePortabilityDatabaseSchema>,
         portabilityOperations,
         portability,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
+      const previewProcessed = await processNextPreviewJob(
+        database as unknown as Database<PreviewDatabaseSchema>,
+        blobStore,
+        previewGenerator,
+        previews,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
       if (Date.now() >= nextPrinterScheduleAt) {
@@ -242,7 +292,8 @@ async function runLocalImportWorkerLoop(
         monitoring,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
-      processed = localImportProcessed || portabilityProcessed || printerPollProcessed;
+      processed =
+        localImportProcessed || portabilityProcessed || previewProcessed || printerPollProcessed;
     } catch (error) {
       logger.error('local_import_worker_iteration_failed', { error });
     }

@@ -19,6 +19,8 @@ import {
 } from './identity/index.js';
 import {
   type ImportDatabaseSchema,
+  importFiles,
+  keepImportExactDuplicates,
   type LocalImportConfiguration,
   LocalImportService,
   readLocalImportConfiguration,
@@ -179,6 +181,16 @@ export async function createApiApplication(
           progressIntervalBytes: configuration.localImport.progressIntervalBytes,
         },
       ),
+      processing: {
+        files: (sessionId) =>
+          importFiles(database as unknown as Database<ImportDatabaseSchema>, sessionId),
+        keepExactDuplicates: (sessionId, fileIds) =>
+          keepImportExactDuplicates(
+            database as unknown as Database<ImportDatabaseSchema>,
+            sessionId,
+            fileIds,
+          ),
+      },
     });
     const portabilityOperations = new CataloguePortabilityOperations(
       database as unknown as Database<CataloguePortabilityDatabaseSchema>,

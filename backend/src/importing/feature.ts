@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 
 import type { OwnerContext } from '../identity/index.js';
 import { HttpError } from '../platform/http/index.js';
-import type { LocalImportPipeline, PersistedImportFile } from './processing/index.js';
+import type { PersistedImportFile } from './processing/index.js';
 import {
   ImportSessionNotFoundError,
   type ImportSessionView,
@@ -18,7 +18,10 @@ export interface ImportIdentityContract {
 export interface LocalImportFeatureOptions {
   readonly service: LocalImportService;
   readonly identity: ImportIdentityContract;
-  readonly pipeline?: LocalImportPipeline;
+  readonly processing?: {
+    readonly files: (sessionId: string) => Promise<readonly PersistedImportFile[]>;
+    readonly keepExactDuplicates: (sessionId: string, fileIds: readonly string[]) => Promise<void>;
+  };
 }
 
 /** Registers transport only; storage, database and worker composition stay in the roots. */
@@ -77,7 +80,7 @@ export function registerLocalImportFeature(
       const sessionId = pathSessionId(request);
       try {
         const session = await options.service.get(owner.id, sessionId);
-        const files = options.pipeline ? await options.pipeline.files(sessionId) : undefined;
+        const files = options.processing ? await options.processing.files(sessionId) : undefined;
         return response(session, undefined, files);
       } catch (error) {
         if (error instanceof ImportSessionNotFoundError) {
@@ -88,7 +91,7 @@ export function registerLocalImportFeature(
     },
   );
 
-  if (options.pipeline) {
+  if (options.processing) {
     application.post(
       '/api/v1/imports/:sessionId/duplicate-decisions',
       { preHandler: options.identity.requireOwner },
@@ -98,7 +101,7 @@ export function registerLocalImportFeature(
         try {
           await options.service.get(owner.id, sessionId);
           const fileIds = duplicateKeepFileIds(request.body);
-          await options.pipeline?.keepExactDuplicates(sessionId, fileIds);
+          await options.processing?.keepExactDuplicates(sessionId, fileIds);
           reply.status(202);
           return { sessionId, decision: 'keep', fileIds };
         } catch (error) {

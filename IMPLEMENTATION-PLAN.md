@@ -17,7 +17,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | F08 | Complete | Local BlobStore and reference-aware lifecycle passed filesystem and PostgreSQL tests |
 | F09 | Complete | Structured logging, metrics, health, and authenticated diagnostics verified |
 | F10 | Complete | Versioned protocol and restricted container probe verified |
-| F11 | Ready, not started | Secure host-side processor supervisor required; Docker socket access from API/worker is forbidden by ADR-0003 |
+| F11 | Complete | Authenticated UDS supervisor, SHA-pinned restricted containers, streamed checksums/cleanup, read-only worker socket mount, and real detect/extract/preview container checks verified |
 | F07 | Complete | Durable jobs passed concurrency, lease, retry, recovery, and dead-letter tests |
 | I01 | Complete | Identity and runnable API composition passed PostgreSQL authentication/CSRF tests |
 | C01 | Complete | Catalogue invariants and migrations 0001–0004 passed full PostgreSQL tests |
@@ -25,17 +25,18 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | C02 | Complete | Authenticated catalogue workflows and runnable API composition verified |
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
 | C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
-| C05 | Blocked | Durable artifacts, processor dispatch/generators, and renderer complete; secure runtime/API/worker/detail composition requires F11 |
+| C05 | In progress | Secure preview generator and worker dispatch are composed; authenticated request/status/download APIs and model-detail composition remain |
 | C06 | Blocked | Core manifest, ZIP, durable jobs, API, and current-schema round trip complete; final artifact/history fields require C05 and P09 |
-| C07 | Blocked | Browser-ready asset download and upload-to-new-version contract requires M07 |
+| C07 | Ready | Prerequisites C02 and M07 are complete |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |
 | M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
 | M03 | Complete | Restricted processor detection, bounded metadata, duplicate warnings, and atomic partial-failure reporting verified |
-| M07 | Blocked | Durable pipeline, reports, duplicate decisions, cleanup, and publication pass PostgreSQL tests; Compose runtime requires F11 |
-| M06 | Blocked | Requires M07 so the UI consumes persisted warnings and duplicate decisions instead of inventing a contract |
+| M07 | Complete | Secure supervisor adapters are composed in the worker, report/duplicate APIs are composed in the API, PostgreSQL regressions pass, and real container detection/extraction passes |
+| M06 | Ready | Stable persisted import-session, file-report, warning, and duplicate-decision contracts are available |
 | P01 | Complete | Encrypted owner-scoped printer configuration, SSRF-aware verification, profile v1, and normalized OctoPrint gateway verified |
 | P02 | Complete | Durable observations, freshness/history, startup/periodic scheduling, reconnect reconciliation, APIs, and worker composition verified |
-| S01 | Ready, not started | Released by F04, F06, and I01; held for the next execution wave |
+| P03 | Complete | Bounded parser and backend facts adapter pass processor/backend tests with conservative unknown results for unsafe inference |
+| S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 
 All tasks not listed above remain blocked by the DAG.

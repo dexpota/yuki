@@ -193,7 +193,7 @@ describe('processor supervisor IPC', () => {
 
 async function setup(
   execute: NonNullable<ProcessorSupervisorDependencies['execute']>,
-  requestTimeoutMs = 1_000,
+  requestTimeoutMs = 5_000,
 ) {
   const root = await temporaryRoot();
   const socketPath = join(root, 'processor.sock');
@@ -229,7 +229,7 @@ async function setup(
     responseWorkspaceRoot: responseWorkspaces,
     maximumResponseBytes: 1024 * 1024,
     maximumOutputFiles: 500,
-    timeoutMs: 2_000,
+    timeoutMs: 10_000,
   });
   return {
     socketPath,

@@ -85,5 +85,8 @@ function validWorkerEnvironment(): NodeJS.ProcessEnv {
     YUKI_DATABASE_URL: 'postgresql://unused/test',
     YUKI_MASTER_KEY: Buffer.alloc(32, 2).toString('base64'),
     YUKI_STORAGE_ROOT: '/unused/storage',
+    YUKI_PROCESSOR_SOCKET: '/unused/processor.sock',
+    YUKI_PROCESSOR_TOKEN: 'test-only-processor-token-32-bytes',
+    YUKI_PROCESSOR_RESPONSE_ROOT: '/unused/processor-responses',
   };
 }

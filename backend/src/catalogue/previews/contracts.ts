@@ -74,5 +74,14 @@ export interface GeneratedPreviewFile {
 }
 
 export type PreviewGenerationResult =
-  | { readonly status: 'ready'; readonly files: readonly GeneratedPreviewFile[] }
-  | { readonly status: 'failed' | 'unsupported'; readonly code: string; readonly message: string };
+  | {
+      readonly status: 'ready';
+      readonly files: readonly GeneratedPreviewFile[];
+      readonly cleanup?: () => Promise<void>;
+    }
+  | {
+      readonly status: 'failed' | 'unsupported';
+      readonly code: string;
+      readonly message: string;
+      readonly cleanup?: () => Promise<void>;
+    };

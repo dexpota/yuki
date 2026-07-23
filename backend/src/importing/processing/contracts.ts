@@ -41,6 +41,8 @@ export interface PreparedImportBatch {
   readonly originalDetection: DetectionProcessorResult;
   /** Archive extraction must have been preceded by complete central-directory inspection. */
   readonly files: readonly (PreparedImportFile | RejectedImportFile)[];
+  /** Releases processor response workspaces after returned streams are consumed. */
+  readonly cleanup?: () => Promise<void>;
 }
 
 /**

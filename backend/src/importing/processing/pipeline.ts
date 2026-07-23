@@ -144,101 +144,59 @@ export class LocalImportPipeline {
         .execute();
       throw failure;
     }
-    validateBatch(batch.files);
-    assertRetryMatches(existing, session.checksum, batch.files);
+    try {
+      validateBatch(batch.files);
+      assertRetryMatches(existing, session.checksum, batch.files);
 
-    await this.#persistOriginal(
-      sessionId,
-      session.owner_id,
-      session.stored_object_id,
-      session.original_filename,
-      session.checksum,
-      byteSize(session.uploaded_bytes),
-      batch.kind,
-      batch.originalDetection,
-    );
-    for (const file of batch.files) {
-      if (file.fileKey === '__original__') continue;
-      if (isRejectedImportFile(file)) {
-        await this.#persistFailure(sessionId, file);
-      } else {
-        await this.#persistAccepted(sessionId, session.owner_id, file);
+      await this.#persistOriginal(
+        sessionId,
+        session.owner_id,
+        session.stored_object_id,
+        session.original_filename,
+        session.checksum,
+        byteSize(session.uploaded_bytes),
+        batch.kind,
+        batch.originalDetection,
+      );
+      for (const file of batch.files) {
+        if (file.fileKey === '__original__') continue;
+        if (isRejectedImportFile(file)) {
+          await this.#persistFailure(sessionId, file);
+        } else {
+          await this.#persistAccepted(sessionId, session.owner_id, file);
+        }
       }
+      const retryableFailure = batch.files.some(
+        (file) => isRejectedImportFile(file) && file.error.retryable,
+      );
+      if (!retryableFailure) {
+        await this.database
+          .updateTable('import_sessions')
+          .set({
+            processing_completed: true,
+            processing_report: {
+              kind: batch.kind,
+              fileKeys: ['__original__', ...batch.files.map((file) => file.fileKey)],
+            },
+            updated_at: new Date(),
+          })
+          .where('id', '=', sessionId)
+          .where('processing_completed', '=', false)
+          .executeTakeFirstOrThrow();
+      }
+      return validatePrepared(await this.files(sessionId));
+    } finally {
+      await batch.cleanup?.();
     }
-    const retryableFailure = batch.files.some(
-      (file) => isRejectedImportFile(file) && file.error.retryable,
-    );
-    if (!retryableFailure) {
-      await this.database
-        .updateTable('import_sessions')
-        .set({
-          processing_completed: true,
-          processing_report: {
-            kind: batch.kind,
-            fileKeys: ['__original__', ...batch.files.map((file) => file.fileKey)],
-          },
-          updated_at: new Date(),
-        })
-        .where('id', '=', sessionId)
-        .where('processing_completed', '=', false)
-        .executeTakeFirstOrThrow();
-    }
-    return validatePrepared(await this.files(sessionId));
   }
 
   async files(sessionId: string): Promise<readonly PersistedImportFile[]> {
-    const rows = await this.database
-      .selectFrom('import_files')
-      .selectAll()
-      .where('session_id', '=', sessionId)
-      .orderBy('file_key')
-      .execute();
-    return rows.map(mapFile);
+    return importFiles(this.database, sessionId);
   }
 
   /** Explicit advisory decision. No bytes or logical assets are silently discarded. */
   async keepExactDuplicates(sessionId: string, fileIds: readonly string[]): Promise<void> {
-    if (fileIds.length === 0) throw new TypeError('At least one import file is required');
-    await this.database.transaction().execute(async (transaction) => {
-      const uniqueIds = [...new Set(fileIds)];
-      const result = await transaction
-        .updateTable('import_files')
-        .set({ duplicate_decision: 'keep', updated_at: new Date() })
-        .where('session_id', '=', sessionId)
-        .where('id', 'in', uniqueIds)
-        .where('duplicate_decision', '=', 'required')
-        .executeTakeFirst();
-      if (Number(result.numUpdatedRows) !== uniqueIds.length) {
-        throw new TypeError('Duplicate decision contains an unknown or already-decided file');
-      }
-      const session = await transaction
-        .selectFrom('import_sessions')
-        .select(['job_id', 'state'])
-        .where('id', '=', sessionId)
-        .forUpdate()
-        .executeTakeFirst();
-      if (!session?.job_id || !['queued', 'processing'].includes(session.state)) {
-        throw new TypeError('Import session cannot resume duplicate processing');
-      }
-      await transaction
-        .updateTable('jobs')
-        .set({
-          state: 'queued',
-          attempts: 0,
-          progress: 60,
-          next_attempt_at: new Date(),
-          lease_owner: null,
-          lease_token: null,
-          lease_expires_at: null,
-          last_error_code: null,
-          last_error_message: null,
-          completed_at: null,
-          updated_at: new Date(),
-        })
-        .where('id', '=', session.job_id)
-        .where('state', '=', 'dead_letter')
-        .execute();
-    });
+    return keepImportExactDuplicates(this.database, sessionId, fileIds);
   }
 
   async #persistOriginal(
@@ -390,6 +348,66 @@ export class LocalImportPipeline {
       .onConflict((conflict) => conflict.columns(['session_id', 'file_key']).doNothing())
       .execute();
   }
+}
+
+export async function importFiles(
+  database: Kysely<ImportDatabaseSchema>,
+  sessionId: string,
+): Promise<readonly PersistedImportFile[]> {
+  const rows = await database
+    .selectFrom('import_files')
+    .selectAll()
+    .where('session_id', '=', sessionId)
+    .orderBy('file_key')
+    .execute();
+  return rows.map(mapFile);
+}
+
+/** Applies an explicit advisory keep decision and resumes the same durable job. */
+export async function keepImportExactDuplicates(
+  database: Kysely<ImportDatabaseSchema>,
+  sessionId: string,
+  fileIds: readonly string[],
+): Promise<void> {
+  if (fileIds.length === 0) throw new TypeError('At least one import file is required');
+  await database.transaction().execute(async (transaction) => {
+    const uniqueIds = [...new Set(fileIds)];
+    const result = await transaction
+      .updateTable('import_files')
+      .set({ duplicate_decision: 'keep', updated_at: new Date() })
+      .where('session_id', '=', sessionId)
+      .where('id', 'in', uniqueIds)
+      .where('duplicate_decision', '=', 'required')
+      .executeTakeFirst();
+    if (Number(result.numUpdatedRows) !== uniqueIds.length)
+      throw new TypeError('Duplicate decision contains an unknown or already-decided file');
+    const session = await transaction
+      .selectFrom('import_sessions')
+      .select(['job_id', 'state'])
+      .where('id', '=', sessionId)
+      .forUpdate()
+      .executeTakeFirst();
+    if (!session?.job_id || !['queued', 'processing'].includes(session.state))
+      throw new TypeError('Import session cannot resume duplicate processing');
+    await transaction
+      .updateTable('jobs')
+      .set({
+        state: 'queued',
+        attempts: 0,
+        progress: 60,
+        next_attempt_at: new Date(),
+        lease_owner: null,
+        lease_token: null,
+        lease_expires_at: null,
+        last_error_code: null,
+        last_error_message: null,
+        completed_at: null,
+        updated_at: new Date(),
+      })
+      .where('id', '=', session.job_id)
+      .where('state', '=', 'dead_letter')
+      .execute();
+  });
 }
 
 function validatePrepared(files: readonly PersistedImportFile[]): readonly PersistedImportFile[] {

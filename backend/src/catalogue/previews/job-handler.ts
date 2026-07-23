@@ -50,36 +50,40 @@ export async function handlePreviewJob(
       size: checkedSize(source.byte_size),
       open: () => blobStore.read(source.object_key),
     });
-    if (generated.status !== 'ready') {
-      for (const artifactId of payload.artifactIds)
-        await previews.finishWithoutArtifact(payload.ownerId, artifactId, generated);
-    } else {
-      const byKind = new Map(generated.files.map((file) => [file.kind, file]));
-      const outputs = [];
-      for (let index = 0; index < payload.artifactIds.length; index += 1) {
-        const artifactId = payload.artifactIds[index];
-        if (!artifactId) throw new Error('Preview artifact identifier is missing.');
-        const artifact = await previews
-          .forAsset(payload.ownerId, payload.sourceAssetId)
-          .then((items) => items.find((item) => item.id === artifactId));
-        if (!artifact) throw new Error('Preview artifact disappeared.');
-        const file = byKind.get(artifact.kind);
-        if (!file) throw new Error('Processor omitted a required preview artifact.');
-        const committed = await blobStore.commit(await blobStore.stage(file.bytes));
-        const storedObjectId = crypto.randomUUID();
-        outputs.push({
-          artifactId,
-          storedObjectId,
-          backend: settings.storageBackend,
-          objectKey: committed.key,
-          checksum: committed.checksum,
-          mimeType: file.mimeType,
-          byteSize: committed.size,
-          ...(file.dimensions ? { dimensions: file.dimensions } : {}),
-          ...(file.summary ? { summary: file.summary } : {}),
-        });
+    try {
+      if (generated.status !== 'ready') {
+        for (const artifactId of payload.artifactIds)
+          await previews.finishWithoutArtifact(payload.ownerId, artifactId, generated);
+      } else {
+        const byKind = new Map(generated.files.map((file) => [file.kind, file]));
+        const outputs = [];
+        for (let index = 0; index < payload.artifactIds.length; index += 1) {
+          const artifactId = payload.artifactIds[index];
+          if (!artifactId) throw new Error('Preview artifact identifier is missing.');
+          const artifact = await previews
+            .forAsset(payload.ownerId, payload.sourceAssetId)
+            .then((items) => items.find((item) => item.id === artifactId));
+          if (!artifact) throw new Error('Preview artifact disappeared.');
+          const file = byKind.get(artifact.kind);
+          if (!file) throw new Error('Processor omitted a required preview artifact.');
+          const committed = await blobStore.commit(await blobStore.stage(file.bytes));
+          const storedObjectId = crypto.randomUUID();
+          outputs.push({
+            artifactId,
+            storedObjectId,
+            backend: settings.storageBackend,
+            objectKey: committed.key,
+            checksum: committed.checksum,
+            mimeType: file.mimeType,
+            byteSize: committed.size,
+            ...(file.dimensions ? { dimensions: file.dimensions } : {}),
+            ...(file.summary ? { summary: file.summary } : {}),
+          });
+        }
+        await previews.readyBatch(payload.ownerId, outputs);
       }
-      await previews.readyBatch(payload.ownerId, outputs);
+    } finally {
+      await generated.cleanup?.();
     }
     await reportJobProgress(database, job.id, job.leaseToken, 95, { stage: 'published' });
     await completeJob(database, job.id, job.leaseToken);
