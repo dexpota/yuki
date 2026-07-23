@@ -58,8 +58,11 @@ import {
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
+  type QueueDatabaseSchema,
+  QueueService,
   registerPrinterFeature,
   registerPrinterMonitoringFeature,
+  registerQueueFeature,
 } from './printing/index.js';
 import { registerSettingsFeature, type SettingsDatabaseSchema } from './settings/index.js';
 
@@ -77,6 +80,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
   PreviewDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
+  QueueDatabaseSchema &
   SettingsDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
@@ -222,6 +226,10 @@ export async function createApiApplication(
       database: database as unknown as Database<PrinterDatabaseSchema>,
       identity,
       secrets: identity.secrets,
+    });
+    registerQueueFeature(application, {
+      identity,
+      service: new QueueService(database as unknown as Database<QueueDatabaseSchema>),
     });
     registerPrinterMonitoringFeature(application, {
       identity,

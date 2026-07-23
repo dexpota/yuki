@@ -59,6 +59,10 @@ import {
   PrinterMonitoringService,
   PrinterPollScheduler,
   processNextPrinterPollJob,
+  processNextQueueEvaluationJob,
+  type QueueDatabaseSchema,
+  QueueService,
+  SupervisorGcodeFactsProvider,
 } from './printing/index.js';
 
 export const workerArtifact = 'backend-worker';
@@ -67,7 +71,8 @@ export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
-  PreviewDatabaseSchema;
+  PreviewDatabaseSchema &
+  QueueDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
@@ -130,6 +135,8 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
             database as unknown as Database<PreviewDatabaseSchema>,
           );
           const previewGenerator = new SupervisorPreviewGenerator(processorClient);
+          const queue = new QueueService(database as unknown as Database<QueueDatabaseSchema>);
+          const gcodeFacts = new SupervisorGcodeFactsProvider(processorClient);
           const monitoring = new PrinterMonitoringService(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
             new SecretVault(configuration.masterKey),
@@ -157,6 +164,8 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               portability,
               previews,
               previewGenerator,
+              queue,
+              gcodeFacts,
               blobStore,
               monitoring,
               printerPolls,
@@ -252,6 +261,8 @@ async function runLocalImportWorkerLoop(
   portability: CataloguePortabilityService,
   previews: CataloguePreviewService,
   previewGenerator: SupervisorPreviewGenerator,
+  queue: QueueService,
+  gcodeFacts: SupervisorGcodeFactsProvider,
   blobStore: BlobStore,
   monitoring: PrinterMonitoringService,
   printerPolls: PrinterPollScheduler,
@@ -283,6 +294,13 @@ async function runLocalImportWorkerLoop(
         previews,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
+      const queueProcessed = await processNextQueueEvaluationJob(
+        database as unknown as Database<QueueDatabaseSchema>,
+        blobStore,
+        gcodeFacts,
+        queue,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
       if (Date.now() >= nextPrinterScheduleAt) {
         await printerPolls.schedulePeriodic();
         nextPrinterScheduleAt = Date.now() + 15_000;
@@ -293,7 +311,11 @@ async function runLocalImportWorkerLoop(
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
       processed =
-        localImportProcessed || portabilityProcessed || previewProcessed || printerPollProcessed;
+        localImportProcessed ||
+        portabilityProcessed ||
+        previewProcessed ||
+        queueProcessed ||
+        printerPollProcessed;
     } catch (error) {
       logger.error('local_import_worker_iteration_failed', { error });
     }

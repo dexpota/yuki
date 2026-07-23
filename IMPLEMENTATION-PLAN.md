@@ -35,9 +35,11 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | M06 | Complete | Authenticated drag/drop upload, progress, polling, per-file warnings/failures, exact-duplicate confirmation, cancellation, and published-model navigation verified |
 | P01 | Complete | Encrypted owner-scoped printer configuration, SSRF-aware verification, profile v1, and normalized OctoPrint gateway verified |
 | P02 | Complete | Durable observations, freshness/history, startup/periodic scheduling, reconnect reconciliation, APIs, and worker composition verified |
-| P03 | Complete | Bounded parser and backend facts adapter pass processor/backend tests with conservative unknown results for unsafe inference |
+| P03 | Complete | Bounded parser, backend fact validation, and the read-only restricted-supervisor operation are composed with conservative unknown results for unsafe inference |
 | P04 | Complete | Rule set 1.0.0, immutable owner-scoped input/result snapshots, hard conflicts, overridable warnings/unknowns, and PostgreSQL persistence verified |
-| P05 | Ready | P04 completed the final prerequisite for persistent per-printer queues |
+| P05 | Complete | Durable evaluation, owner-scoped queue APIs, atomic per-printer positions/reordering/removal, override policy, restart-safe worker processing, and PostgreSQL concurrency verified |
+| P06 | Ready | I01, P02, and P05 are complete |
+| P08 | Ready | F04, F06, P02, and P05 are complete |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 

@@ -206,7 +206,7 @@ export class ProcessorSupervisor {
     const mounts: ProcessorFileMount[] = [
       { hostPath: inputPath, containerPath: inputTarget(header.operation), writable: false },
     ];
-    if (header.operation !== 'detect-file')
+    if (header.operation === 'extract-zip' || header.operation === 'generate-preview')
       mounts.push({ hostPath: outputRoot, containerPath: '/output', writable: true });
     return this.#execute(request, this.configuration.runner, {}, mounts);
   }
@@ -232,6 +232,17 @@ function processorRequest(header: SupervisorRequestHeader): ProcessorRequest<unk
       inputPath: '/input/archive.zip',
       outputDirectory: '/output/archive',
       limits: header.limits,
+    } as ProcessorRequest<unknown>;
+  if (header.operation === 'parse-gcode-facts')
+    return {
+      protocolVersion: 1,
+      requestId: header.requestId,
+      operation: 'parse-gcode-facts',
+      payload: {
+        version: 1,
+        inputPath: '/input/source',
+        limits: header.limits,
+      },
     } as ProcessorRequest<unknown>;
   return {
     protocolVersion: 1,
@@ -273,7 +284,7 @@ async function collectOutputs(
   maximumBytes: number,
   maximumFiles: number,
 ): Promise<readonly OutputFile[]> {
-  if (operation === 'detect-file') return [];
+  if (operation === 'detect-file' || operation === 'parse-gcode-facts') return [];
   if (!isRecord(result)) throw new TypeError('Processor result is invalid');
   let descriptors: readonly {
     readonly name: string;

@@ -127,6 +127,35 @@ describe('processor supervisor IPC', () => {
     await supervisor.close();
   });
 
+  it('parses bounded G-code facts without a writable output mount', async () => {
+    const fixture = await setup(async (request, _configuration, _dependencies, mounts) => {
+      expect(request).toMatchObject({
+        operation: 'parse-gcode-facts',
+        payload: { version: 1, inputPath: '/input/source' },
+      });
+      expect(mounts).toHaveLength(1);
+      expect(mounts[0]).toMatchObject({ containerPath: '/input/source', writable: false });
+      return success(request.requestId, { facts: { schemaVersion: 1 } });
+    });
+    const execution = await fixture.client.execute({
+      requestId: 'gcode-facts-1',
+      operation: 'parse-gcode-facts',
+      inputBytes: 7,
+      input: Readable.from(['G1 X1\\n']),
+      limits: {
+        maximumInputBytes: 1_000,
+        maximumLines: 100,
+        maximumLineBytes: 100,
+        maximumSegments: 100,
+        maximumMetadataEntries: 10,
+      },
+    });
+    expect(execution.processorResult).toEqual({ facts: { schemaVersion: 1 } });
+    expect(execution.outputs).toEqual([]);
+    await execution.cleanup();
+    await fixture.close();
+  });
+
   it('reads either a socket or complete TCP client configuration', () => {
     const common = {
       YUKI_PROCESSOR_TOKEN: token,

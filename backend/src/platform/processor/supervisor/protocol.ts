@@ -3,7 +3,11 @@ import type { Readable } from 'node:stream';
 export const SUPERVISOR_PROTOCOL_VERSION = 1 as const;
 export const MAX_SUPERVISOR_HEADER_BYTES = 64 * 1024;
 
-export type SupervisorOperation = 'detect-file' | 'extract-zip' | 'generate-preview';
+export type SupervisorOperation =
+  | 'detect-file'
+  | 'extract-zip'
+  | 'generate-preview'
+  | 'parse-gcode-facts';
 
 export interface SupervisorRequestHeader {
   readonly protocolVersion: typeof SUPERVISOR_PROTOCOL_VERSION;
@@ -160,7 +164,9 @@ function isLimits(value: unknown): value is Readonly<Record<string, number>> {
 }
 
 function isOperation(value: unknown): value is SupervisorOperation {
-  return ['detect-file', 'extract-zip', 'generate-preview'].includes(String(value));
+  return ['detect-file', 'extract-zip', 'generate-preview', 'parse-gcode-facts'].includes(
+    String(value),
+  );
 }
 
 function isFormat(value: unknown): value is NonNullable<SupervisorRequestHeader['format']> {
