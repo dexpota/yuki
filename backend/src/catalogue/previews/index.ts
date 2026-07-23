@@ -10,9 +10,16 @@ export type {
   ReadyArtifact,
   ReadyArtifactBatchItem,
 } from './contracts.js';
+export {
+  type CataloguePreviewIdentityBoundary,
+  registerCataloguePreviewFeature,
+} from './feature.js';
 export { handlePreviewJob, processNextPreviewJob } from './job-handler.js';
 export type { PreviewGenerator } from './operations.js';
 export {
+  CataloguePreviewNotFoundError,
+  CataloguePreviewOperations,
+  CataloguePreviewUnavailableError,
   previewJobType,
   previewPayloadVersion,
   requestPreviewGeneration,

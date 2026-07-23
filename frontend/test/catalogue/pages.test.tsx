@@ -92,6 +92,69 @@ describe('catalogue pages', () => {
       ).toBe(true),
     );
   });
+
+  it('requests preview generation from the current model version', async () => {
+    const detail = modelDetail();
+    detail.assets.push({
+      id: 'asset-1',
+      model_version_id: 'version-2',
+      role: 'geometry',
+      format: 'stl',
+      original_filename: 'benchy.stl',
+      detected_mime_type: 'model/stl',
+      byte_size: 84,
+      checksum: 'a'.repeat(64),
+      imported_at: '2026-01-02T00:00:00.000Z',
+    });
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.endsWith('/assets/asset-1/previews'))
+        return Response.json({
+          artifacts:
+            init?.method === 'POST'
+              ? [
+                  {
+                    id: 'preview-1',
+                    sourceAssetId: 'asset-1',
+                    kind: 'geometry_preview',
+                    status: 'queued',
+                    mimeType: null,
+                    byteSize: null,
+                    dimensions: null,
+                    summary: null,
+                    failure: null,
+                    attempt: 0,
+                    downloadUrl: null,
+                  },
+                ]
+              : [],
+        });
+      if (url.endsWith('/collections')) return Response.json([]);
+      return Response.json(detail);
+    });
+    vi.stubGlobal('fetch', fetch);
+    const queryClient = client();
+    queryClient.setQueryData(sessionQueryKey, {
+      authenticated: true,
+      setupRequired: false,
+      owner: { id: 'owner-1', username: 'Owner' },
+      csrfToken: 'csrf-session',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+    renderPage(<ModelPage />, queryClient, '/catalogue/models/model-1');
+
+    expect(await screen.findAllByText('benchy.stl')).toHaveLength(2);
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate preview' }));
+    expect(await screen.findByText('Generating preview…')).toBeInTheDocument();
+    expect(
+      fetch.mock.calls.some(
+        ([url, init]) =>
+          String(url).endsWith('/assets/asset-1/previews') &&
+          init?.method === 'POST' &&
+          new Headers(init.headers).get('x-csrf-token') === 'csrf-session',
+      ),
+    ).toBe(true);
+  });
 });
 
 function renderPage(node: React.ReactNode, queryClient = client(), path = '/') {
@@ -133,7 +196,27 @@ function item(id: string, name: string) {
   };
 }
 
-function modelDetail() {
+function modelDetail(): {
+  model: {
+    id: string;
+    name: string;
+    description: string;
+    import_source: 'upload';
+    source_url: null;
+    creator: null;
+    license: null;
+    favorite: boolean;
+    current_version_id: string;
+    print_count: number;
+    last_printed_at: null;
+    created_at: string;
+    updated_at: string;
+  };
+  versions: Array<Record<string, unknown>>;
+  assets: Array<Record<string, unknown>>;
+  tags: Array<{ id: string; name: string }>;
+  collections: never[];
+} {
   return {
     model: {
       id: 'model-1',

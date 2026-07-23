@@ -166,6 +166,38 @@
   margin-top: 0;
 }
 
+.preview-panel,
+.asset-previews,
+.asset-preview {
+  display: grid;
+  gap: 1rem;
+}
+
+.asset-preview {
+  padding-top: 1rem;
+  border-top: 1px solid #35433b;
+}
+
+.asset-preview:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.asset-preview > header,
+.asset-preview > header > div {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.asset-preview > header {
+  justify-content: space-between;
+}
+
+.asset-preview small {
+  color: #9da9a1;
+}
+
 .catalogue-form {
   display: grid;
   gap: 1rem;

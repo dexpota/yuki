@@ -6,14 +6,17 @@ import { useSession } from '../../settings/identity/session.js';
 import {
   createCollection,
   deleteModel,
+  getAssetPreviews,
   getModel,
   listCollections,
   type ModelDetail,
   replaceCollections,
   replaceTags,
+  requestAssetPreviews,
   restoreVersion,
   updateModel,
 } from '../api.js';
+import { ModelPreview, type PreviewState } from '../preview/index.js';
 import '../catalogue.css';
 
 export function ModelPage() {
@@ -74,6 +77,7 @@ export function ModelPage() {
       </header>
       <MutationError mutations={[favorite]} />
 
+      <CurrentVersionPreviews detail={value} csrfToken={csrfToken} />
       <div className="model-detail-columns">
         <div>
           <EditModel detail={value} csrfToken={csrfToken} onSuccess={applyDetail} />
@@ -102,6 +106,122 @@ export function ModelPage() {
       </div>
     </article>
   );
+}
+
+function CurrentVersionPreviews({
+  detail,
+  csrfToken,
+}: {
+  readonly detail: ModelDetail;
+  readonly csrfToken: string;
+}) {
+  const assets = detail.assets.filter(
+    (asset) =>
+      asset.model_version_id === detail.model.current_version_id &&
+      ['stl', '3mf', 'obj', 'step', 'gcode'].includes(asset.format),
+  );
+  if (assets.length === 0) return null;
+  return (
+    <section className="catalogue-panel preview-panel">
+      <h2>Previews</h2>
+      <div className="asset-previews">
+        {assets.map((asset) => (
+          <AssetPreview key={asset.id} asset={asset} csrfToken={csrfToken} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function AssetPreview({
+  asset,
+  csrfToken,
+}: {
+  readonly asset: ModelDetail['assets'][number];
+  readonly csrfToken: string;
+}) {
+  const queryClient = useQueryClient();
+  const queryKey = ['catalogue', 'asset', asset.id, 'previews'] as const;
+  const previews = useQuery({
+    queryKey,
+    queryFn: () => getAssetPreviews(asset.id),
+    refetchInterval: (query) =>
+      query.state.data?.artifacts.some(
+        (artifact) => artifact.status === 'queued' || artifact.status === 'processing',
+      )
+        ? 1_000
+        : false,
+  });
+  const request = useMutation({
+    mutationFn: () => requestAssetPreviews(asset.id, csrfToken),
+    onSuccess: (result) => queryClient.setQueryData(queryKey, result),
+  });
+  const artifact = previews.data?.artifacts.find((item) =>
+    asset.format === 'gcode' ? item.kind === 'toolpath_preview' : item.kind === 'geometry_preview',
+  );
+  const state = artifact ? previewState(artifact) : undefined;
+
+  return (
+    <article className="asset-preview">
+      <header>
+        <div>
+          <strong>{asset.original_filename}</strong>
+          <small>{asset.format.toUpperCase()}</small>
+        </div>
+        {!previews.isPending && !artifact ? (
+          <button type="button" disabled={request.isPending} onClick={() => request.mutate()}>
+            {request.isPending ? 'Queuing…' : 'Generate preview'}
+          </button>
+        ) : null}
+      </header>
+      {previews.isPending ? <p aria-busy="true">Loading preview status…</p> : null}
+      {previews.isError ? (
+        <p role="alert">Preview status could not be loaded.</p>
+      ) : state ? (
+        <ModelPreview preview={state} />
+      ) : null}
+      <MutationError mutations={[request]} />
+    </article>
+  );
+}
+
+function previewState(
+  artifact: Awaited<ReturnType<typeof getAssetPreviews>>['artifacts'][number],
+): PreviewState {
+  if (artifact.status === 'queued' || artifact.status === 'processing')
+    return { status: artifact.status };
+  if (artifact.status === 'failed' || artifact.status === 'unsupported')
+    return {
+      status: artifact.status,
+      message: artifact.failure?.message ?? 'No additional details are available.',
+    };
+  if (!artifact.downloadUrl)
+    return { status: 'failed', message: 'The generated artifact is unavailable.' };
+  if (artifact.kind === 'toolpath_preview')
+    return { status: 'ready', kind: 'toolpath', artifactUrl: artifact.downloadUrl };
+  const dimensions = previewDimensions(artifact.dimensions);
+  return {
+    status: 'ready',
+    kind: 'geometry',
+    artifactUrl: artifact.downloadUrl,
+    ...(dimensions ? { dimensions } : {}),
+  };
+}
+
+function previewDimensions(
+  value: unknown,
+): { readonly width: number; readonly depth: number; readonly height: number } | undefined {
+  if (!value || typeof value !== 'object') return undefined;
+  const dimensions = value as Record<string, unknown>;
+  return ['width', 'depth', 'height'].every(
+    (name) => typeof dimensions[name] === 'number' && Number.isFinite(dimensions[name]),
+  )
+    ? {
+        width: dimensions.width as number,
+        depth: dimensions.depth as number,
+        height: dimensions.height as number,
+      }
+    : undefined;
 }
 
 function EditModel({ detail, csrfToken, onSuccess }: EditorProps) {

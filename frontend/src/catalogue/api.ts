@@ -102,6 +102,27 @@ export interface Collection {
   readonly description: string;
 }
 
+export type PreviewArtifactKind = 'geometry_preview' | 'thumbnail' | 'toolpath_preview';
+export type PreviewArtifactStatus = 'queued' | 'processing' | 'ready' | 'failed' | 'unsupported';
+
+export interface PreviewArtifact {
+  readonly id: string;
+  readonly sourceAssetId: string;
+  readonly kind: PreviewArtifactKind;
+  readonly status: PreviewArtifactStatus;
+  readonly mimeType: string | null;
+  readonly byteSize: number | null;
+  readonly dimensions: unknown | null;
+  readonly summary: unknown | null;
+  readonly failure: { readonly code: string; readonly message: string } | null;
+  readonly attempt: number;
+  readonly downloadUrl: string | null;
+}
+
+export interface PreviewArtifactList {
+  readonly artifacts: readonly PreviewArtifact[];
+}
+
 export function listTags(): Promise<readonly Tag[]> {
   return apiRequest('/api/v1/catalogue/tags');
 }
@@ -131,6 +152,20 @@ export function searchCatalogue(
 
 export function getModel(modelId: string): Promise<ModelDetail> {
   return apiRequest<ModelDetail>(modelPath(modelId));
+}
+
+export function getAssetPreviews(assetId: string): Promise<PreviewArtifactList> {
+  return apiRequest<PreviewArtifactList>(previewPath(assetId));
+}
+
+export function requestAssetPreviews(
+  assetId: string,
+  csrfToken: string,
+): Promise<PreviewArtifactList> {
+  return apiRequest<PreviewArtifactList>(previewPath(assetId), {
+    method: 'POST',
+    csrfToken,
+  });
 }
 
 export interface ModelUpdate {
@@ -209,6 +244,10 @@ export function deleteModel(modelId: string, csrfToken: string): Promise<void> {
 
 function modelPath(modelId: string): string {
   return `/api/v1/catalogue/models/${encodeURIComponent(modelId)}`;
+}
+
+function previewPath(assetId: string): string {
+  return `/api/v1/catalogue/assets/${encodeURIComponent(assetId)}/previews`;
 }
 
 function set(query: URLSearchParams, name: string, value: string | boolean | undefined): void {

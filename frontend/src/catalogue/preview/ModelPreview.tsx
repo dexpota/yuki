@@ -6,6 +6,7 @@ export type PreviewState =
   | { readonly status: 'failed' | 'unsupported'; readonly message: string }
   | {
       readonly status: 'ready';
+      readonly kind: 'geometry' | 'toolpath';
       readonly artifactUrl: string;
       readonly dimensions?: {
         readonly width: number;
@@ -32,12 +33,157 @@ export function ModelPreview({ preview }: { readonly preview: PreviewState }) {
   if (preview.status === 'unsupported')
     return <PreviewNotice>Preview unavailable: {preview.message}</PreviewNotice>;
   if (preview.status !== 'ready') return null;
+  if (preview.kind === 'toolpath') return <ToolpathCanvas url={preview.artifactUrl} />;
   return (
     <GlbCanvas
       url={preview.artifactUrl}
       {...(preview.dimensions ? { dimensions: preview.dimensions } : {})}
     />
   );
+}
+
+interface ToolpathDocument {
+  readonly layers: readonly {
+    readonly z: number;
+    readonly segments: readonly (readonly [number, number, number, number])[];
+  }[];
+}
+
+function ToolpathCanvas({ url }: { readonly url: string }) {
+  const canvas = useRef<HTMLCanvasElement>(null);
+  const [toolpath, setToolpath] = useState<ToolpathDocument>();
+  const [layer, setLayer] = useState(0);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setError(false);
+    fetch(url, { signal: controller.signal, credentials: 'same-origin' })
+      .then((response) => {
+        if (!response.ok) throw new Error('toolpath unavailable');
+        return response.json();
+      })
+      .then((value: unknown) => {
+        const parsed = readToolpath(value);
+        setToolpath(parsed);
+        setLayer(Math.max(0, parsed.layers.length - 1));
+      })
+      .catch((reason: unknown) => {
+        if (!(reason instanceof DOMException && reason.name === 'AbortError')) setError(true);
+      });
+    return () => controller.abort();
+  }, [url]);
+
+  useEffect(() => {
+    if (!canvas.current || !toolpath) return;
+    drawToolpath(canvas.current, toolpath.layers[layer]?.segments ?? []);
+  }, [layer, toolpath]);
+
+  if (error) return <PreviewNotice>Generated toolpath could not be loaded.</PreviewNotice>;
+  return (
+    <section className="model-preview" aria-label="Read-only G-code layer preview">
+      <canvas ref={canvas} width={800} height={520} aria-label="G-code extrusion toolpath" />
+      {toolpath ? (
+        <div className="model-preview-controls">
+          <label>
+            Layer
+            <input
+              type="range"
+              min="0"
+              max={Math.max(0, toolpath.layers.length - 1)}
+              value={layer}
+              onChange={(event) => setLayer(Number(event.target.value))}
+            />
+          </label>
+          <span>
+            {layer + 1} / {toolpath.layers.length} · Z {format(toolpath.layers[layer]?.z ?? 0)} mm
+          </span>
+        </div>
+      ) : (
+        <PreviewNotice busy>Loading toolpath…</PreviewNotice>
+      )}
+    </section>
+  );
+}
+
+function readToolpath(value: unknown): ToolpathDocument {
+  if (!value || typeof value !== 'object') throw new Error('Invalid toolpath preview.');
+  const document = value as { version?: unknown; unit?: unknown; layers?: unknown };
+  if (
+    document.version !== 1 ||
+    document.unit !== 'mm' ||
+    !Array.isArray(document.layers) ||
+    document.layers.length === 0 ||
+    document.layers.length > 5_000
+  )
+    throw new Error('Invalid toolpath preview.');
+  let segmentCount = 0;
+  const layers = document.layers.map((value) => {
+    if (!value || typeof value !== 'object') throw new Error('Invalid toolpath layer.');
+    const candidate = value as { z?: unknown; segments?: unknown };
+    if (
+      typeof candidate.z !== 'number' ||
+      !Number.isFinite(candidate.z) ||
+      !Array.isArray(candidate.segments)
+    )
+      throw new Error('Invalid toolpath layer.');
+    const segments = candidate.segments.map((segment) => {
+      segmentCount += 1;
+      if (
+        segmentCount > 1_000_000 ||
+        !Array.isArray(segment) ||
+        segment.length !== 4 ||
+        !segment.every(
+          (coordinate) => typeof coordinate === 'number' && Number.isFinite(coordinate),
+        )
+      )
+        throw new Error('Invalid toolpath segment.');
+      return segment as [number, number, number, number];
+    });
+    return { z: candidate.z, segments };
+  });
+  return { layers };
+}
+
+function drawToolpath(
+  canvas: HTMLCanvasElement,
+  segments: readonly (readonly [number, number, number, number])[],
+): void {
+  const context = canvas.getContext('2d');
+  if (!context) return;
+  context.fillStyle = '#eef2f6';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  if (segments.length === 0) return;
+  let minimumX = Infinity;
+  let maximumX = -Infinity;
+  let minimumY = Infinity;
+  let maximumY = -Infinity;
+  for (const [x1, y1, x2, y2] of segments) {
+    minimumX = Math.min(minimumX, x1, x2);
+    maximumX = Math.max(maximumX, x1, x2);
+    minimumY = Math.min(minimumY, y1, y2);
+    maximumY = Math.max(maximumY, y1, y2);
+  }
+  const scale = Math.min(
+    (canvas.width - 48) / Math.max(maximumX - minimumX, 1e-9),
+    (canvas.height - 48) / Math.max(maximumY - minimumY, 1e-9),
+  );
+  const offsetX = (canvas.width - (maximumX - minimumX) * scale) / 2;
+  const offsetY = (canvas.height - (maximumY - minimumY) * scale) / 2;
+  context.strokeStyle = '#29465b';
+  context.lineWidth = 2;
+  context.beginPath();
+  for (const [x1, y1, x2, y2] of segments) {
+    context.moveTo(
+      offsetX + (x1 - minimumX) * scale,
+      canvas.height - offsetY - (y1 - minimumY) * scale,
+    );
+    context.lineTo(
+      offsetX + (x2 - minimumX) * scale,
+      canvas.height - offsetY - (y2 - minimumY) * scale,
+    );
+  }
+  context.stroke();
 }
 
 function GlbCanvas({

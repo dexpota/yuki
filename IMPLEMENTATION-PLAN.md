@@ -25,7 +25,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | C02 | Complete | Authenticated catalogue workflows and runnable API composition verified |
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
 | C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
-| C05 | In progress | Secure preview generator and worker dispatch are composed; authenticated request/status/download APIs and model-detail composition remain |
+| C05 | In progress | Secure generation, worker dispatch, owner-scoped request/status/download APIs, and model-detail geometry/G-code rendering are composed; OBJ/3MF/STEP conversion and the required STEP approach decision remain |
 | C06 | Blocked | Core manifest, ZIP, durable jobs, API, and current-schema round trip complete; final artifact/history fields require C05 and P09 |
 | C07 | Ready | Prerequisites C02 and M07 are complete |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |

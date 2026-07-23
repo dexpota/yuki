@@ -6,8 +6,12 @@ import {
   type CatalogueDatabaseSchema,
   type CataloguePortabilityDatabaseSchema,
   CataloguePortabilityOperations,
+  CataloguePreviewOperations,
+  CataloguePreviewService,
+  type PreviewDatabaseSchema,
   registerCatalogueFeature,
   registerCataloguePortabilityFeature,
+  registerCataloguePreviewFeature,
   registerCatalogueSearchFeature,
 } from './catalogue/index.js';
 import {
@@ -71,6 +75,7 @@ export interface ApiCompositionConfiguration extends ApiConfiguration {
 export type ApiDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
+  PreviewDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
   SettingsDatabaseSchema;
 
@@ -201,6 +206,17 @@ export async function createApiApplication(
     registerCataloguePortabilityFeature(application, {
       identity,
       operations: portabilityOperations,
+    });
+    const previewService = new CataloguePreviewService(
+      database as unknown as Database<PreviewDatabaseSchema>,
+    );
+    registerCataloguePreviewFeature(application, {
+      identity,
+      operations: new CataloguePreviewOperations(
+        database as unknown as Database<PreviewDatabaseSchema>,
+        blobStore,
+        previewService,
+      ),
     });
     registerPrinterFeature(application, {
       database: database as unknown as Database<PrinterDatabaseSchema>,
