@@ -3,8 +3,9 @@ import type { ProcessorSupervisorClientConfiguration } from './client.js';
 export function readProcessorSupervisorClientConfiguration(
   environment: NodeJS.ProcessEnv,
 ): ProcessorSupervisorClientConfiguration {
+  const endpoint = clientEndpoint(environment);
   return {
-    socketPath: required(environment.YUKI_PROCESSOR_SOCKET, 'YUKI_PROCESSOR_SOCKET'),
+    ...endpoint,
     authenticationToken: required(environment.YUKI_PROCESSOR_TOKEN, 'YUKI_PROCESSOR_TOKEN'),
     responseWorkspaceRoot: required(
       environment.YUKI_PROCESSOR_RESPONSE_ROOT,
@@ -26,6 +27,22 @@ export function readProcessorSupervisorClientConfiguration(
       'YUKI_PROCESSOR_CLIENT_TIMEOUT_MS',
     ),
   };
+}
+
+function clientEndpoint(
+  environment: NodeJS.ProcessEnv,
+): Pick<ProcessorSupervisorClientConfiguration, 'socketPath' | 'host' | 'port'> {
+  const host = environment.YUKI_PROCESSOR_HOST?.trim();
+  const rawPort = environment.YUKI_PROCESSOR_PORT?.trim();
+  if (host !== undefined || rawPort !== undefined) {
+    if (!host || !rawPort)
+      throw new TypeError('YUKI_PROCESSOR_HOST and YUKI_PROCESSOR_PORT must be set together');
+    return {
+      host,
+      port: positiveInteger(rawPort, 0, 'YUKI_PROCESSOR_PORT'),
+    };
+  }
+  return { socketPath: required(environment.YUKI_PROCESSOR_SOCKET, 'YUKI_PROCESSOR_SOCKET') };
 }
 
 function required(value: string | undefined, name: string): string {

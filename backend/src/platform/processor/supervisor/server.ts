@@ -23,7 +23,9 @@ import {
 } from './protocol.js';
 
 export interface ProcessorSupervisorConfiguration {
-  readonly socketPath: string;
+  readonly socketPath?: string;
+  readonly host?: string;
+  readonly port?: number;
   readonly socketMode?: number;
   readonly authenticationToken: string;
   readonly workspaceRoot: string;
@@ -63,8 +65,10 @@ export class ProcessorSupervisor {
   async listen(): Promise<void> {
     if (this.#server) throw new Error('Processor supervisor is already listening');
     await mkdir(this.configuration.workspaceRoot, { recursive: true, mode: 0o700 });
-    await mkdir(dirname(this.configuration.socketPath), { recursive: true });
-    await removeStaleSocket(this.configuration.socketPath);
+    if (this.configuration.socketPath !== undefined) {
+      await mkdir(dirname(this.configuration.socketPath), { recursive: true });
+      await removeStaleSocket(this.configuration.socketPath);
+    }
     const server = createServer((socket) => void this.#handle(socket));
     this.#server = server;
     await new Promise<void>((resolvePromise, reject) => {
@@ -78,9 +82,14 @@ export class ProcessorSupervisor {
       };
       server.once('error', onError);
       server.once('listening', onListening);
-      server.listen(this.configuration.socketPath);
+      if (this.configuration.socketPath !== undefined) {
+        server.listen(this.configuration.socketPath);
+      } else {
+        server.listen(this.configuration.port, this.configuration.host);
+      }
     });
-    await chmod(this.configuration.socketPath, this.configuration.socketMode ?? 0o660);
+    if (this.configuration.socketPath !== undefined)
+      await chmod(this.configuration.socketPath, this.configuration.socketMode ?? 0o660);
   }
 
   async close(): Promise<void> {
@@ -90,7 +99,8 @@ export class ProcessorSupervisor {
       await new Promise<void>((resolvePromise, reject) =>
         server.close((error) => (error ? reject(error) : resolvePromise())),
       );
-    await rm(this.configuration.socketPath, { force: true }).catch(() => undefined);
+    if (this.configuration.socketPath !== undefined)
+      await rm(this.configuration.socketPath, { force: true }).catch(() => undefined);
   }
 
   async #handle(socket: Socket): Promise<void> {
@@ -418,12 +428,7 @@ async function removeStaleSocket(path: string): Promise<void> {
 }
 
 function validateConfiguration(configuration: ProcessorSupervisorConfiguration): void {
-  if (
-    !resolve(configuration.socketPath).startsWith(
-      `${resolve(dirname(configuration.socketPath))}${sep}`,
-    )
-  )
-    throw new TypeError('Supervisor socket path is invalid');
+  validateEndpoint(configuration);
   if (Buffer.byteLength(configuration.authenticationToken) < 32)
     throw new TypeError('Supervisor authentication token must contain at least 32 bytes');
   for (const value of [
@@ -436,13 +441,34 @@ function validateConfiguration(configuration: ProcessorSupervisorConfiguration):
     if (!Number.isSafeInteger(value) || value < 1)
       throw new TypeError('Supervisor limits must be positive safe integers');
   if (
-    !isAbsolute(configuration.socketPath) ||
     !isAbsolute(configuration.workspaceRoot) ||
-    resolve(configuration.socketPath) === parse(resolve(configuration.socketPath)).root ||
     resolve(configuration.workspaceRoot) === parse(resolve(configuration.workspaceRoot)).root ||
     basename(configuration.workspaceRoot).length === 0
   )
     throw new TypeError('Supervisor workspace root is invalid');
+}
+
+function validateEndpoint(configuration: ProcessorSupervisorConfiguration): void {
+  const usesSocket = configuration.socketPath !== undefined;
+  const usesTcp = configuration.host !== undefined || configuration.port !== undefined;
+  if (usesSocket === usesTcp) throw new TypeError('Configure one supervisor endpoint');
+  if (usesSocket) {
+    const socketPath = configuration.socketPath as string;
+    if (
+      !isAbsolute(socketPath) ||
+      resolve(socketPath) === parse(resolve(socketPath)).root ||
+      !resolve(socketPath).startsWith(`${resolve(dirname(socketPath))}${sep}`)
+    )
+      throw new TypeError('Supervisor socket path is invalid');
+    return;
+  }
+  if (
+    !['127.0.0.1', '::1'].includes(configuration.host ?? '') ||
+    !Number.isSafeInteger(configuration.port) ||
+    Number(configuration.port) < 1 ||
+    Number(configuration.port) > 65_535
+  )
+    throw new TypeError('Supervisor TCP endpoint must use loopback and a valid port');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

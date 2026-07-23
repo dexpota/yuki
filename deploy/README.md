@@ -70,6 +70,8 @@ assets, and proxy state.
 | `YUKI_IMPORT_POLL_INTERVAL_MS` | `1000` | Delay while the import-job queue is empty |
 | `YUKI_IMPORT_JOB_LEASE_MS` | `30000` | Lease duration for one claimed import job |
 | `YUKI_PROCESSOR_TOKEN` | Development-only fixed token | Authenticates worker requests to the host processor supervisor; replace and keep stable |
+| `YUKI_PROCESSOR_TRANSPORT` | `tcp` | `tcp` for Docker Desktop development; `socket` for native Unix-socket deployments |
+| `YUKI_PROCESSOR_PORT` | `3210` | Loopback supervisor and fixed bridge port when the TCP transport is selected |
 
 PostgreSQL credentials are composed into the internal database URL. If a
 username or password contains URL-reserved characters, percent-encode them in
@@ -81,10 +83,14 @@ another machine. Changing the master key after storing encrypted secrets makes
 those secrets unreadable.
 
 The processor token must contain at least 32 bytes and must match in the host
-supervisor and worker environments. `deploy/run` contains only the Unix socket;
-it is mounted read-only into the worker. The API and worker never receive
-`/var/run/docker.sock`. The supervisor resolves the locally built processor to
-its immutable image ID before invoking it. See
+supervisor and worker environments. Development defaults to a loopback-only TCP
+listener because Docker Desktop cannot consume a Unix socket bind-mounted from
+macOS. A fixed, unprivileged bridge forwards only this byte stream from the
+internal worker network through Docker's host gateway. The protocol remains
+authenticated end to end; the bridge receives no token or Docker socket. Set
+`YUKI_PROCESSOR_TRANSPORT=socket` for a native Unix socket deployment. The API,
+worker, and bridge never receive `/var/run/docker.sock`. The supervisor resolves
+the locally built processor to its immutable image ID before invoking it. See
 `docs/ADR-0003-import-processor-deployment.md` for the security boundary.
 
 The `postgres_data` and `storage_data` named volumes are the durable application

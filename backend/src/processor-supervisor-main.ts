@@ -1,7 +1,7 @@
 import { ProcessorSupervisor } from './platform/processor/supervisor/index.js';
 
 const supervisor = new ProcessorSupervisor({
-  socketPath: required('YUKI_PROCESSOR_SOCKET'),
+  ...endpoint(),
   socketMode: integer('YUKI_PROCESSOR_SOCKET_MODE', 0o660),
   authenticationToken: required('YUKI_PROCESSOR_TOKEN'),
   workspaceRoot: required('YUKI_PROCESSOR_WORKSPACE_ROOT'),
@@ -31,6 +31,21 @@ function required(name: string): string {
   const value = process.env[name];
   if (!value) throw new Error(`${name} is required`);
   return value;
+}
+
+function endpoint():
+  | { readonly socketPath: string }
+  | { readonly host: string; readonly port: number } {
+  const rawPort = process.env.YUKI_PROCESSOR_PORT;
+  if (rawPort !== undefined) {
+    if (process.env.YUKI_PROCESSOR_SOCKET !== undefined)
+      throw new Error('Configure only one processor supervisor endpoint');
+    return {
+      host: process.env.YUKI_PROCESSOR_HOST ?? '127.0.0.1',
+      port: integer('YUKI_PROCESSOR_PORT', 3210),
+    };
+  }
+  return { socketPath: required('YUKI_PROCESSOR_SOCKET') };
 }
 
 function integer(name: string, fallback: number): number {

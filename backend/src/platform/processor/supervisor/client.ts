@@ -17,7 +17,9 @@ import {
 } from './protocol.js';
 
 export interface ProcessorSupervisorClientConfiguration {
-  readonly socketPath: string;
+  readonly socketPath?: string;
+  readonly host?: string;
+  readonly port?: number;
   readonly authenticationToken: string;
   readonly responseWorkspaceRoot: string;
   readonly maximumResponseBytes: number;
@@ -60,10 +62,9 @@ export class ProcessorSupervisorClient {
       configuration.timeoutMs < 1
     )
       throw new TypeError('Supervisor client limits are invalid');
+    validateEndpoint(configuration);
     if (
-      !isAbsolute(configuration.socketPath) ||
       !isAbsolute(configuration.responseWorkspaceRoot) ||
-      resolve(configuration.socketPath) === parse(resolve(configuration.socketPath)).root ||
       resolve(configuration.responseWorkspaceRoot) ===
         parse(resolve(configuration.responseWorkspaceRoot)).root
     )
@@ -71,7 +72,7 @@ export class ProcessorSupervisorClient {
   }
 
   async execute(request: SupervisorExecutionRequest): Promise<SupervisorExecution> {
-    const socket = await connect(this.configuration.socketPath, this.configuration.timeoutMs);
+    const socket = await connect(this.configuration, this.configuration.timeoutMs);
     const timeout = setTimeout(
       () => socket.destroy(new Error('Supervisor request timed out')),
       this.configuration.timeoutMs,
@@ -173,9 +174,18 @@ export class ProcessorSupervisorClient {
   }
 }
 
-function connect(socketPath: string, timeoutMs: number): Promise<Socket> {
+function connect(
+  configuration: ProcessorSupervisorClientConfiguration,
+  timeoutMs: number,
+): Promise<Socket> {
   return new Promise((resolvePromise, reject) => {
-    const socket = createConnection(socketPath);
+    const socket =
+      configuration.socketPath === undefined
+        ? createConnection({
+            host: configuration.host as string,
+            port: configuration.port as number,
+          })
+        : createConnection(configuration.socketPath);
     const timeout = setTimeout(() => {
       socket.destroy();
       reject(new Error('Supervisor connection timed out'));
@@ -187,4 +197,24 @@ function connect(socketPath: string, timeoutMs: number): Promise<Socket> {
     });
     socket.once('error', reject);
   });
+}
+
+function validateEndpoint(configuration: ProcessorSupervisorClientConfiguration): void {
+  const usesSocket = configuration.socketPath !== undefined;
+  const usesTcp = configuration.host !== undefined || configuration.port !== undefined;
+  if (usesSocket === usesTcp) throw new TypeError('Configure one supervisor client endpoint');
+  if (usesSocket) {
+    const socketPath = configuration.socketPath as string;
+    if (!isAbsolute(socketPath) || resolve(socketPath) === parse(resolve(socketPath)).root)
+      throw new TypeError('Supervisor client paths must be absolute and non-root');
+    return;
+  }
+  if (
+    typeof configuration.host !== 'string' ||
+    !/^[A-Za-z0-9][A-Za-z0-9.:-]{0,254}$/.test(configuration.host) ||
+    !Number.isSafeInteger(configuration.port) ||
+    Number(configuration.port) < 1 ||
+    Number(configuration.port) > 65_535
+  )
+    throw new TypeError('Supervisor client TCP endpoint is invalid');
 }

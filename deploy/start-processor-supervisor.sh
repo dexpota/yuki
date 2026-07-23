@@ -15,8 +15,19 @@ fi
 processor_image=${YUKI_PROCESSOR_IMAGE:-$(docker image inspect --format '{{.Id}}' yuki-processor:development)}
 
 export YUKI_PROCESSOR_IMAGE="$processor_image"
-export YUKI_PROCESSOR_SOCKET="$repository_root/deploy/run/processor.sock"
-export YUKI_PROCESSOR_SOCKET_MODE=438
+processor_transport=${YUKI_PROCESSOR_TRANSPORT:-tcp}
+if [ "$processor_transport" = "tcp" ]; then
+  unset YUKI_PROCESSOR_SOCKET
+  export YUKI_PROCESSOR_HOST=127.0.0.1
+  export YUKI_PROCESSOR_PORT="${YUKI_PROCESSOR_PORT:-3210}"
+elif [ "$processor_transport" = "socket" ]; then
+  unset YUKI_PROCESSOR_HOST YUKI_PROCESSOR_PORT
+  export YUKI_PROCESSOR_SOCKET="$repository_root/deploy/run/processor.sock"
+  export YUKI_PROCESSOR_SOCKET_MODE=438
+else
+  echo "YUKI_PROCESSOR_TRANSPORT must be tcp or socket" >&2
+  exit 1
+fi
 export YUKI_PROCESSOR_WORKSPACE_ROOT="${YUKI_PROCESSOR_WORKSPACE_ROOT:-/tmp/yuki-processor-supervisor}"
 
 exec node "$repository_root/backend/dist/processor-supervisor-main.js"

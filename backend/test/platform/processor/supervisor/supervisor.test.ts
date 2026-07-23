@@ -11,6 +11,7 @@ import {
   encodeHeader,
   ProcessorSupervisor,
   ProcessorSupervisorClient,
+  readProcessorSupervisorClientConfiguration,
   SUPERVISOR_PROTOCOL_VERSION,
 } from '../../../../src/platform/processor/supervisor/index.js';
 import type { ProcessorSupervisorDependencies } from '../../../../src/platform/processor/supervisor/server.js';
@@ -25,11 +26,13 @@ afterEach(async () => {
 });
 
 describe('processor supervisor IPC', () => {
-  it('keeps the Docker socket out of application containers', async () => {
+  it('keeps the Docker socket out of application containers and uses the narrow bridge', async () => {
     const compose = await readFile(join(process.cwd(), '..', 'deploy', 'compose.yaml'), 'utf8');
     expect(compose).not.toContain('/var/run/docker.sock');
-    expect(compose).toContain('target: /run/yuki-processor');
-    expect(compose).toMatch(/target: \/run\/yuki-processor\s+read_only: true/);
+    expect(compose).toContain('YUKI_PROCESSOR_HOST: processor-bridge');
+    expect(compose).toContain('source: ./processor-tcp-bridge.mjs');
+    expect(compose).toMatch(/source: \.\/processor-tcp-bridge\.mjs[\s\S]*?read_only: true/);
+    expect(compose).toMatch(/processor-bridge:[\s\S]*?cap_drop:\s+- ALL/);
   });
 
   it('streams input and extracted outputs across the socket and removes host workspaces', async () => {
@@ -64,6 +67,90 @@ describe('processor supervisor IPC', () => {
     await execution.cleanup();
     expect(await readdir(fixture.responseWorkspaces)).toEqual([]);
     await fixture.close();
+  });
+
+  it('supports an authenticated loopback TCP endpoint for Docker Desktop bridging', async () => {
+    const root = await temporaryRoot();
+    const port = await availablePort();
+    const supervisor = new ProcessorSupervisor(
+      {
+        host: '127.0.0.1',
+        port,
+        authenticationToken: token,
+        workspaceRoot: join(root, 'host-workspaces'),
+        maximumInputBytes: 1024,
+        maximumOutputBytes: 1024,
+        maximumOutputFiles: 10,
+        maximumConcurrency: 1,
+        requestTimeoutMs: 5_000,
+        runner: {
+          image: `processor@sha256:${'a'.repeat(64)}`,
+          timeoutMs: 1_000,
+          terminationGraceMs: 10,
+          memory: '128m',
+          cpus: 1,
+          pidsLimit: 16,
+          workspaceSize: '64m',
+        },
+      },
+      {
+        execute: async (request) =>
+          success(request.requestId, {
+            format: 'stl',
+            mimeType: 'model/stl',
+            confidence: 'text',
+            metadata: {},
+            warnings: [],
+          }),
+      },
+    );
+    await supervisor.listen();
+    const client = new ProcessorSupervisorClient({
+      host: '127.0.0.1',
+      port,
+      authenticationToken: token,
+      responseWorkspaceRoot: join(root, 'responses'),
+      maximumResponseBytes: 1024,
+      maximumOutputFiles: 10,
+      timeoutMs: 5_000,
+    });
+    const execution = await client.execute({
+      requestId: 'tcp-1',
+      operation: 'detect-file',
+      inputBytes: 4,
+      input: Readable.from(['mesh']),
+      filename: 'part.stl',
+      limits: detectionLimits(),
+    });
+    expect(execution.processorResult).toMatchObject({ format: 'stl' });
+    await execution.cleanup();
+    await supervisor.close();
+  });
+
+  it('reads either a socket or complete TCP client configuration', () => {
+    const common = {
+      YUKI_PROCESSOR_TOKEN: token,
+      YUKI_PROCESSOR_RESPONSE_ROOT: '/tmp/responses',
+    };
+    expect(
+      readProcessorSupervisorClientConfiguration({
+        ...common,
+        YUKI_PROCESSOR_HOST: 'processor-bridge',
+        YUKI_PROCESSOR_PORT: '3210',
+      }),
+    ).toMatchObject({ host: 'processor-bridge', port: 3210 });
+    expect(
+      readProcessorSupervisorClientConfiguration({
+        ...common,
+        YUKI_PROCESSOR_SOCKET: '/tmp/processor.sock',
+      }),
+    ).toMatchObject({ socketPath: '/tmp/processor.sock' });
+    expect(() =>
+      readProcessorSupervisorClientConfiguration({
+        ...common,
+        YUKI_PROCESSOR_HOST: 'processor-bridge',
+      }),
+    ).toThrow('must be set together');
   });
 
   it('rejects invalid authentication without invoking the container runner', async () => {
@@ -244,6 +331,20 @@ async function temporaryRoot(): Promise<string> {
   const root = await mkdtemp('/tmp/yuki-supervisor-test-');
   temporaryRoots.push(root);
   return root;
+}
+
+async function availablePort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolvePromise, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolvePromise);
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('Expected a TCP listener');
+  await new Promise<void>((resolvePromise, reject) =>
+    server.close((error) => (error ? reject(error) : resolvePromise())),
+  );
+  return address.port;
 }
 
 function success(requestId: string, result: unknown): ProcessorResponse<unknown> {

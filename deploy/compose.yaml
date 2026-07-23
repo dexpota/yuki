@@ -135,6 +135,44 @@ services:
     tmpfs:
       - /tmp:size=32m,mode=1777
 
+  processor-bridge:
+    image: node:24.18.0-alpine3.23
+    command: ["node", "/bridge/processor-tcp-bridge.mjs"]
+    restart: unless-stopped
+    environment:
+      YUKI_PROCESSOR_BRIDGE_PORT: ${YUKI_PROCESSOR_PORT:-3210}
+      YUKI_PROCESSOR_TARGET_HOST: host.docker.internal
+      YUKI_PROCESSOR_TARGET_PORT: ${YUKI_PROCESSOR_PORT:-3210}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - data
+      - edge
+    volumes:
+      - type: bind
+        source: ./processor-tcp-bridge.mjs
+        target: /bridge/processor-tcp-bridge.mjs
+        read_only: true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "const s=require('node:net').createConnection(process.env.YUKI_PROCESSOR_BRIDGE_PORT,'127.0.0.1');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+
   worker:
     image: yuki-backend:development
     build: *backend-build
@@ -149,7 +187,8 @@ services:
       YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES: ${YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES:-1048576}
       YUKI_IMPORT_POLL_INTERVAL_MS: ${YUKI_IMPORT_POLL_INTERVAL_MS:-1000}
       YUKI_IMPORT_JOB_LEASE_MS: ${YUKI_IMPORT_JOB_LEASE_MS:-30000}
-      YUKI_PROCESSOR_SOCKET: /run/yuki-processor/processor.sock
+      YUKI_PROCESSOR_HOST: processor-bridge
+      YUKI_PROCESSOR_PORT: ${YUKI_PROCESSOR_PORT:-3210}
       YUKI_PROCESSOR_TOKEN: ${YUKI_PROCESSOR_TOKEN:-ZGV2ZWxvcG1lbnQtb25seS1wcm9jZXNzb3ItdG9rZW4=}
       YUKI_PROCESSOR_RESPONSE_ROOT: /tmp/yuki-processor-responses
     networks:
@@ -158,13 +197,11 @@ services:
       - type: volume
         source: storage_data
         target: /data/yuki
-      - type: bind
-        source: ./run
-        target: /run/yuki-processor
-        read_only: true
     depends_on:
       migrate:
         condition: service_completed_successfully
+      processor-bridge:
+        condition: service_healthy
     healthcheck:
       test:
         [
