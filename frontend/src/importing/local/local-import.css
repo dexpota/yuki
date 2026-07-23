@@ -1,0 +1,214 @@
+.local-import-page {
+  display: grid;
+  gap: 2rem;
+}
+
+.local-import-heading,
+.import-report > header,
+.import-report-actions,
+.import-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.local-import-heading h1 {
+  max-width: none;
+  font-size: 3.5rem;
+}
+
+.local-import-heading p {
+  max-width: 42rem;
+}
+
+.local-import-form,
+.import-report {
+  display: grid;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  background: #16211c;
+  border: 1px solid #35433b;
+  border-radius: 0.8rem;
+}
+
+.local-import-form {
+  grid-template-columns: minmax(0, 1.4fr) minmax(18rem, 0.6fr);
+  align-items: end;
+}
+
+.import-drop-zone {
+  display: grid;
+  grid-row: span 2;
+  min-height: 13rem;
+  place-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  color: #9da9a1;
+  text-align: center;
+  background: #101714;
+  border: 2px dashed #536259;
+  border-radius: 0.7rem;
+  cursor: pointer;
+}
+
+.import-drop-zone:hover,
+.import-drop-zone.is-dragging {
+  background: #15291e;
+  border-color: #9ee2b7;
+}
+
+.import-drop-zone input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.import-drop-title {
+  color: #e8eee9;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.import-actions,
+.import-report-actions {
+  justify-content: flex-start;
+}
+
+.import-progress,
+.import-problem,
+.duplicate-decision {
+  padding: 1.25rem;
+  background: #16211c;
+  border: 1px solid #35433b;
+  border-radius: 0.7rem;
+}
+
+.import-progress {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.import-progress > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.import-progress progress {
+  width: 100%;
+  height: 0.8rem;
+  accent-color: #9ee2b7;
+}
+
+.import-problem {
+  color: #ffd8d4;
+  background: #542622;
+  border-color: #754039;
+}
+
+.import-problem p {
+  color: #ffd8d4;
+}
+
+.duplicate-decision {
+  background: #3a3218;
+  border-color: #75652c;
+}
+
+.duplicate-decision h3 {
+  margin-top: 0;
+}
+
+.import-report h2 {
+  margin: 0.25rem 0 0;
+  font-size: 2rem;
+}
+
+.import-state,
+.file-status {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.state-receiving,
+.state-queued,
+.state-processing {
+  color: #ffe7ad;
+  background: #4a3b15;
+}
+
+.state-succeeded,
+.file-accepted {
+  color: #b9f6cd;
+  background: #203d2c;
+}
+
+.state-failed,
+.file-failed {
+  color: #ffd8d4;
+  background: #542622;
+}
+
+.import-files {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.import-files li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.35rem 1rem;
+  padding: 1rem;
+  background: #101714;
+  border: 1px solid #35433b;
+  border-radius: 0.6rem;
+}
+
+.import-files li > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.import-files li > div span,
+.file-note {
+  color: #9da9a1;
+  font-size: 0.85rem;
+}
+
+.file-warning,
+.file-error,
+.file-note {
+  grid-column: 1 / -1;
+  margin: 0.25rem 0 0;
+}
+
+.file-warning {
+  color: #ffe7ad;
+}
+
+.file-error {
+  color: #ffd8d4;
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.7rem 1rem;
+  color: #0b1911;
+  background: #9ee2b7;
+  border-radius: 0.4rem;
+  font-weight: 700;
+  text-decoration: none;
+}

@@ -40,8 +40,8 @@ export function registerLocalImportFeature(
     { preHandler: options.identity.requireOwner },
     async (request, reply) => {
       const owner = options.identity.ownerForRequest(request).owner;
-      const filename = requiredHeader(request, 'x-yuki-filename');
-      const modelName = requiredHeader(request, 'x-yuki-model-name');
+      const filename = uploadMetadataHeader(request, 'x-yuki-filename');
+      const modelName = uploadMetadataHeader(request, 'x-yuki-model-name');
       const idempotencyKey = optionalHeader(request, 'idempotency-key');
       const claimedMimeType = contentType(request);
       const declaredLength = optionalContentLength(request);
@@ -126,12 +126,24 @@ function requiredHeader(request: FastifyRequest, name: string): string {
   return value;
 }
 
+function uploadMetadataHeader(request: FastifyRequest, name: string): string {
+  const value = requiredHeader(request, name);
+  if (optionalHeader(request, 'x-yuki-value-encoding') !== 'percent') return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new HttpError(400, 'upload_header_invalid', `${name} header is invalid`);
+  }
+}
+
 function optionalHeader(request: FastifyRequest, name: string): string | undefined {
   const value = request.headers[name];
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
 function contentType(request: FastifyRequest): string {
+  const claimed = optionalHeader(request, 'x-yuki-claimed-mime-type');
+  if (claimed) return claimed.slice(0, 255);
   const value = request.headers['content-type'];
   return typeof value === 'string'
     ? value.split(';', 1)[0]?.trim() || 'application/octet-stream'

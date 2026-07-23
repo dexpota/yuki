@@ -1,5 +1,6 @@
 import { isRouteErrorResponse, Link, type RouteObject, useRouteError } from 'react-router';
 import { CataloguePage, ModelPage } from '../../catalogue/index.js';
+import { LocalImportPage } from '../../importing/local/index.js';
 import { SessionGate, useSession } from '../../settings/identity/session.js';
 import { InstallationSettingsPage } from '../../settings/installation/index.js';
 import { AppShell } from './AppShell.js';
@@ -36,6 +37,12 @@ function InstallationSettingsRoute() {
   return <InstallationSettingsPage csrfToken={session.data.csrfToken} />;
 }
 
+function LocalImportRoute() {
+  const session = useSession();
+  if (session.data?.authenticated !== true) return null;
+  return <LocalImportPage csrfToken={session.data.csrfToken} />;
+}
+
 export const routes: RouteObject[] = [
   {
     element: <SessionGate />,
@@ -49,6 +56,7 @@ export const routes: RouteObject[] = [
         children: [
           { index: true, element: <CataloguePage /> },
           { path: 'catalogue/models/:modelId', element: <ModelPage /> },
+          { path: 'import', element: <LocalImportRoute /> },
           { path: 'settings', element: <InstallationSettingsRoute /> },
           { path: '*', element: <NotFoundPage /> },
         ],

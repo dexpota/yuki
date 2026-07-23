@@ -42,6 +42,9 @@ export function CataloguePage() {
           <p className="eyebrow">Catalogue</p>
           <h1>Your models</h1>
         </div>
+        <Link className="catalogue-import-link" to="/import">
+          Import model
+        </Link>
       </header>
 
       <form className="catalogue-filters" onSubmit={submit} aria-label="Catalogue filters">

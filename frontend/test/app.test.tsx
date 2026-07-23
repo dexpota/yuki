@@ -58,6 +58,13 @@ describe('application shell', () => {
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Return home' })).toHaveAttribute('href', '/');
   });
+
+  it('composes the authenticated manual import route', async () => {
+    renderRoute('/import');
+
+    expect(await screen.findByRole('heading', { name: 'Add a model' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Import' })).toHaveAttribute('href', '/import');
+  });
 });
 
 describe('application error boundary', () => {

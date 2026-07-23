@@ -17,6 +17,7 @@ export function AppShell() {
           <>
             <nav aria-label="Application">
               <NavLink to="/">Catalogue</NavLink>
+              <NavLink to="/import">Import</NavLink>
               <NavLink to="/settings">Settings</NavLink>
             </nav>
             <div className="owner-session">

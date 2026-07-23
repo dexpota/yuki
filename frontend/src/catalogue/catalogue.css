@@ -18,6 +18,15 @@
   font-size: 3.5rem;
 }
 
+.catalogue-import-link {
+  padding: 0.7rem 1rem;
+  color: #0b1911;
+  background: #9ee2b7;
+  border-radius: 0.4rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .catalogue-filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

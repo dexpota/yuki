@@ -32,7 +32,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
 | M03 | Complete | Restricted processor detection, bounded metadata, duplicate warnings, and atomic partial-failure reporting verified |
 | M07 | Complete | Secure supervisor adapters are composed in the worker, report/duplicate APIs are composed in the API, PostgreSQL regressions pass, and real container detection/extraction passes |
-| M06 | Ready | Stable persisted import-session, file-report, warning, and duplicate-decision contracts are available |
+| M06 | Complete | Authenticated drag/drop upload, progress, polling, per-file warnings/failures, exact-duplicate confirmation, cancellation, and published-model navigation verified |
 | P01 | Complete | Encrypted owner-scoped printer configuration, SSRF-aware verification, profile v1, and normalized OctoPrint gateway verified |
 | P02 | Complete | Durable observations, freshness/history, startup/periodic scheduling, reconnect reconciliation, APIs, and worker composition verified |
 | P03 | Complete | Bounded parser and backend facts adapter pass processor/backend tests with conservative unknown results for unsafe inference |
