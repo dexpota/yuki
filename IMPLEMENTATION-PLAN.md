@@ -36,6 +36,8 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P01 | Complete | Encrypted owner-scoped printer configuration, SSRF-aware verification, profile v1, and normalized OctoPrint gateway verified |
 | P02 | Complete | Durable observations, freshness/history, startup/periodic scheduling, reconnect reconciliation, APIs, and worker composition verified |
 | P03 | Complete | Bounded parser and backend facts adapter pass processor/backend tests with conservative unknown results for unsafe inference |
+| P04 | Complete | Rule set 1.0.0, immutable owner-scoped input/result snapshots, hard conflicts, overridable warnings/unknowns, and PostgreSQL persistence verified |
+| P05 | Ready | P04 completed the final prerequisite for persistent per-printer queues |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 
