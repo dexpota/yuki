@@ -21,6 +21,7 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const cancellation = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
   const lastUpload = useRef<{ readonly signature: string; readonly idempotencyKey: string } | null>(
     null,
   );
@@ -79,6 +80,7 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
     setSessionId(null);
     setUploadProgress(0);
     lastUpload.current = null;
+    if (fileInput.current) fileInput.current.value = '';
     upload.reset();
     duplicates.reset();
     if (!modelNameEdited || !modelName.trim()) setModelName(nameFrom(next.name));
@@ -127,6 +129,7 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
           onDrop={drop}
         >
           <input
+            ref={fileInput}
             type="file"
             accept=".stl,.3mf,.obj,.step,.stp,.gcode,.zip"
             disabled={upload.isPending}
@@ -169,6 +172,10 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
             >
               Cancel upload
             </button>
+          ) : null}
+          {!file ? <span className="import-action-help">Choose a file to continue.</span> : null}
+          {file && !modelName.trim() ? (
+            <span className="import-action-help">Enter a model name to continue.</span>
           ) : null}
         </div>
       </form>

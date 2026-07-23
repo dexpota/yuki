@@ -104,6 +104,29 @@ describe('manual import API', () => {
 });
 
 describe('manual import page', () => {
+  it('clears the native picker so the same file can be selected for another import', async () => {
+    const view = renderPage();
+    const input = requiredFileInput(view.container);
+    const file = new File(['solid model'], 'model.stl', { type: 'model/stl' });
+    fireEvent.change(input, { target: { files: [file] } });
+    const submit = screen.getByRole('button', { name: 'Upload and import' });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    await waitFor(() => expect(FakeXmlHttpRequest.instances).toHaveLength(1));
+    requiredRequest().complete(
+      202,
+      session({ state: 'succeeded', progress: 100, modelId: 'model-1' }),
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import another model' }));
+    expect(input.value).toBe('');
+    expect(submit).toBeDisabled();
+    expect(screen.getByText('Choose a file to continue.')).toBeVisible();
+
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(submit).toBeEnabled());
+  });
+
   it('retries an interrupted logical upload with the same idempotency key', async () => {
     const view = renderPage();
     const file = new File(['solid model'], 'model.stl', { type: 'model/stl' });

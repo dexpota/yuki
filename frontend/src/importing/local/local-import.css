@@ -79,6 +79,16 @@
   justify-content: flex-start;
 }
 
+.import-actions {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.import-action-help {
+  color: #9da9a1;
+  font-size: 0.85rem;
+}
+
 .import-progress,
 .import-problem,
 .duplicate-decision {
