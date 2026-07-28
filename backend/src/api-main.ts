@@ -61,6 +61,8 @@ import {
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
+  type NotificationDatabaseSchema,
+  NotificationService,
   type PrintHistoryDatabaseSchema,
   PrintHistoryService,
   type PrintStartDatabaseSchema,
@@ -71,6 +73,7 @@ import {
   registerPrinterEventsFeature,
   registerPrinterControlFeature,
   registerPrinterMonitoringFeature,
+  registerNotificationFeature,
   registerPrintHistoryFeature,
   registerPrintStartFeature,
   registerQueueFeature,
@@ -95,6 +98,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   QueueDatabaseSchema &
   PrinterControlDatabaseSchema &
   PrintStartDatabaseSchema &
+  NotificationDatabaseSchema &
   SettingsDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
@@ -287,6 +291,10 @@ export async function createApiApplication(
     registerPrintHistoryFeature(application, {
       identity,
       service: printHistory,
+    });
+    registerNotificationFeature(application, {
+      identity,
+      service: new NotificationService(database as unknown as Database<NotificationDatabaseSchema>),
     });
     installHttpObservability(application, {
       service: apiArtifact,

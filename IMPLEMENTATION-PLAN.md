@@ -43,7 +43,9 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P08 | Complete | Printer configuration, stale-aware monitoring, compatibility queues, confirmed starts/controls, same-origin webcam proxying, and PostgreSQL-backed SSE invalidation are composed and verified |
 | P09 | Complete | Immutable snapshots and append-only audit revisions, manual/external attempts, terminal reconciliation, outcome corrections, notes, reference-safe photos, model projections, failed-history filtering, and APIs passed PostgreSQL tests |
 | P10 | Complete | Model pages now show print projections and chronological attempts with exact-version manual entry; global printer-filtered history supports outcome corrections, notes, and result-photo upload |
-| N01 | Ready | F05, F07, and P06 are complete |
+| N01 | Complete | Terminal print and active-job disconnect transitions atomically create owner-scoped in-app notifications and durable external-delivery jobs; read-state APIs and PostgreSQL rollback/deduplication tests pass |
+| N02 | Ready | N01 now provides the transactional external-delivery outbox |
+| N03 | Ready | F04 and N01 are complete |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 | O02 | Ready | C05 and P07 complete the remaining security-hardening prerequisites |

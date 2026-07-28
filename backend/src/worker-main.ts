@@ -63,6 +63,7 @@ import {
   PrinterMonitoringService,
   PrinterPollScheduler,
   type PrintHistoryDatabaseSchema,
+  type NotificationDatabaseSchema,
   PrintHistoryService,
   PrintStartCommandService,
   type PrintStartDatabaseSchema,
@@ -85,7 +86,8 @@ export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   PreviewDatabaseSchema &
   QueueDatabaseSchema &
   PrinterControlDatabaseSchema &
-  PrintStartDatabaseSchema;
+  PrintStartDatabaseSchema &
+  NotificationDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
