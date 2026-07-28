@@ -16,6 +16,8 @@ describe('catalogue pages', () => {
   it('searches and incrementally loads catalogue results', async () => {
     const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
+      if (url.includes('/printing/print-attempts')) return Response.json({ attempts: [] });
+      if (url.endsWith('/printing/printers')) return Response.json([]);
       if (url.endsWith('/tags') || url.endsWith('/collections')) return Response.json([]);
       const cursor = new URL(url, 'http://yuki.local').searchParams.get('cursor');
       return Response.json({
@@ -51,6 +53,8 @@ describe('catalogue pages', () => {
     const detail = modelDetail();
     const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
+      if (url.includes('/printing/print-attempts')) return Response.json({ attempts: [] });
+      if (url.endsWith('/printing/printers')) return Response.json([]);
       if (url.endsWith('/collections')) return Response.json([]);
       return Response.json(detail);
     });
@@ -108,6 +112,8 @@ describe('catalogue pages', () => {
     });
     const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes('/printing/print-attempts')) return Response.json({ attempts: [] });
+      if (url.endsWith('/printing/printers')) return Response.json([]);
       if (url.endsWith('/assets/asset-1/previews'))
         return Response.json({
           artifacts:

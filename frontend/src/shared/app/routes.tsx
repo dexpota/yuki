@@ -1,6 +1,7 @@
 import { isRouteErrorResponse, Link, type RouteObject, useRouteError } from 'react-router';
 import { CataloguePage, ModelPage } from '../../catalogue/index.js';
 import { LocalImportPage } from '../../importing/local/index.js';
+import { PrintHistoryPage } from '../../printing/history/index.js';
 import { SessionGate, useSession } from '../../settings/identity/session.js';
 import { InstallationSettingsPage } from '../../settings/installation/index.js';
 import { AppShell } from './AppShell.js';
@@ -57,6 +58,7 @@ export const routes: RouteObject[] = [
           { index: true, element: <CataloguePage /> },
           { path: 'catalogue/models/:modelId', element: <ModelPage /> },
           { path: 'import', element: <LocalImportRoute /> },
+          { path: 'history', element: <PrintHistoryPage /> },
           { path: 'settings', element: <InstallationSettingsRoute /> },
           { path: '*', element: <NotFoundPage /> },
         ],

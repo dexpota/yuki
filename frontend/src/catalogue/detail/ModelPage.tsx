@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
+import { ModelPrintHistory } from '../../printing/history/index.js';
 import { useSession } from '../../settings/identity/session.js';
 import {
   createCollection,
@@ -78,6 +79,22 @@ export function ModelPage() {
       <MutationError mutations={[favorite]} />
 
       <CurrentVersionPreviews detail={value} csrfToken={csrfToken} />
+      <ModelPrintHistory
+        csrfToken={csrfToken}
+        context={{
+          modelId: value.model.id,
+          currentVersionId: value.model.current_version_id,
+          printCount: value.model.print_count,
+          lastPrintedAt: value.model.last_printed_at,
+          versions: value.versions.map((version) => ({ id: version.id, label: version.label })),
+          assets: value.assets.map((asset) => ({
+            id: asset.id,
+            modelVersionId: asset.model_version_id,
+            filename: asset.original_filename,
+            format: asset.format,
+          })),
+        }}
+      />
       <div className="model-detail-columns">
         <div>
           <EditModel detail={value} csrfToken={csrfToken} onSuccess={applyDetail} />

@@ -42,7 +42,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P07 | Complete | Single-use fresh-state confirmations, durable pause/resume/cancel/temperature/home commands, bounded OctoPrint dispatch, ambiguous-result reconciliation, and append-only printer/attempt audits passed PostgreSQL tests |
 | P08 | Ready | F04, F06, P02, and P05 are complete |
 | P09 | Complete | Immutable snapshots and append-only audit revisions, manual/external attempts, terminal reconciliation, outcome corrections, notes, reference-safe photos, model projections, failed-history filtering, and APIs passed PostgreSQL tests |
-| P10 | Ready | F04 and P09 are complete |
+| P10 | Complete | Model pages now show print projections and chronological attempts with exact-version manual entry; global printer-filtered history supports outcome corrections, notes, and result-photo upload |
 | N01 | Ready | F05, F07, and P06 are complete |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
