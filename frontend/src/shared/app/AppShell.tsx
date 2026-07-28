@@ -1,10 +1,13 @@
 import { NavLink, Outlet } from 'react-router';
 
+import { useNotifications } from '../../printing/notifications/index.js';
 import { SignOutButton } from '../../settings/identity/SignOutButton.js';
 import { useSession } from '../../settings/identity/session.js';
 
 export function AppShell() {
   const session = useSession();
+  const notifications = useNotifications(false, session.data?.authenticated === true);
+  const unreadCount = notifications.data?.unreadCount ?? 0;
 
   return (
     <div className="app-shell">
@@ -20,6 +23,19 @@ export function AppShell() {
               <NavLink to="/import">Import</NavLink>
               <NavLink to="/history">History</NavLink>
               <NavLink to="/printers">Printers</NavLink>
+              <NavLink className="notification-nav-link" to="/notifications">
+                Notifications
+                {unreadCount > 0 ? (
+                  <>
+                    <span className="notification-nav-badge" aria-hidden="true">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                    <span className="notification-badge-label">
+                      {unreadCount} unread notifications
+                    </span>
+                  </>
+                ) : null}
+              </NavLink>
               <NavLink to="/settings">Settings</NavLink>
             </nav>
             <div className="owner-session">

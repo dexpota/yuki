@@ -36,6 +36,8 @@ function fetchSequence(...sessionResults: readonly (Response | Error)[]) {
       return Promise.resolve(jsonResponse({ items: [], nextCursor: null }));
     if (path === '/api/v1/catalogue/tags' || path === '/api/v1/catalogue/collections')
       return Promise.resolve(jsonResponse([]));
+    if (path.startsWith('/api/v1/notifications?'))
+      return Promise.resolve(jsonResponse({ notifications: [], unreadCount: 0 }));
     const result = sessionResults[sessionIndex++];
     if (result instanceof Error) return Promise.reject(result);
     if (result === undefined) return Promise.reject(new Error(`Unexpected request to ${path}`));

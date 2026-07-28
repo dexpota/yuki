@@ -45,7 +45,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P10 | Complete | Model pages now show print projections and chronological attempts with exact-version manual entry; global printer-filtered history supports outcome corrections, notes, and result-photo upload |
 | N01 | Complete | Terminal print and active-job disconnect transitions atomically create owner-scoped in-app notifications and durable external-delivery jobs; read-state APIs and PostgreSQL rollback/deduplication tests pass |
 | N02 | Ready | N01 now provides the transactional external-delivery outbox |
-| N03 | Ready | F04 and N01 are complete |
+| N03 | Complete | The authenticated shell now shows a five-second live unread badge; the notification center supports unread filtering, per-item read state, mark-all-read, event context links, and tested error/empty states |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 | O02 | Ready | C05 and P07 complete the remaining security-hardening prerequisites |
