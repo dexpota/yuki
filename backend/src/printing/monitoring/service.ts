@@ -66,12 +66,21 @@ export interface PrinterMonitoringServiceOptions {
   readonly now?: () => Date;
   readonly staleAfterMs?: number;
   readonly historyLimit?: number;
+  readonly printHistory?: {
+    readonly observe: (
+      ownerId: string,
+      printerId: string,
+      facts: PrinterFacts,
+      observedAt: Date,
+    ) => Promise<void>;
+  };
 }
 
 export class PrinterMonitoringService {
   readonly #now: () => Date;
   readonly #staleAfterMs: number;
   readonly #historyLimit: number;
+  readonly #printHistory: PrinterMonitoringServiceOptions['printHistory'];
 
   public constructor(
     private readonly database: Kysely<PrinterMonitoringDatabaseSchema>,
@@ -83,6 +92,7 @@ export class PrinterMonitoringService {
     this.#now = options.now ?? (() => new Date());
     this.#staleAfterMs = positiveInteger(options.staleAfterMs ?? 30_000, 'staleAfterMs');
     this.#historyLimit = positiveInteger(options.historyLimit ?? 120, 'historyLimit');
+    this.#printHistory = options.printHistory;
   }
 
   public async poll(
@@ -116,6 +126,7 @@ export class PrinterMonitoringService {
       const facts = await this.gateway.observe(destination, apiKey);
       const reason = previous && previous.consecutive_failures > 0 ? 'reconnect' : requestedReason;
       await this.persistSuccess(ownerId, printerId, observedAt, reason, facts);
+      await this.#printHistory?.observe(ownerId, printerId, facts, observedAt);
     } catch (error) {
       if (error instanceof UnsafePrinterDestinationError) {
         await this.persistFailure(

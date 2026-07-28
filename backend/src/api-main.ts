@@ -58,12 +58,15 @@ import {
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
+  type PrintHistoryDatabaseSchema,
+  PrintHistoryService,
   type PrintStartDatabaseSchema,
   PrintStartService,
   type QueueDatabaseSchema,
   QueueService,
   registerPrinterFeature,
   registerPrinterMonitoringFeature,
+  registerPrintHistoryFeature,
   registerPrintStartFeature,
   registerQueueFeature,
 } from './printing/index.js';
@@ -83,6 +86,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
   PreviewDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
+  PrintHistoryDatabaseSchema &
   QueueDatabaseSchema &
   PrintStartDatabaseSchema &
   SettingsDatabaseSchema;
@@ -235,11 +239,16 @@ export async function createApiApplication(
       identity,
       service: new QueueService(database as unknown as Database<QueueDatabaseSchema>),
     });
+    const printHistory = new PrintHistoryService(
+      database as unknown as Database<PrintHistoryDatabaseSchema>,
+      blobStore,
+    );
     const printerMonitoring = new PrinterMonitoringService(
       database as unknown as Database<PrinterMonitoringDatabaseSchema>,
       identity.secrets,
       new PrinterDestinationPolicy(),
       new OctoPrintMonitoringGateway(),
+      { printHistory },
     );
     registerPrinterMonitoringFeature(application, {
       identity,
@@ -251,6 +260,10 @@ export async function createApiApplication(
         database as unknown as Database<PrintStartDatabaseSchema>,
         printerMonitoring,
       ),
+    });
+    registerPrintHistoryFeature(application, {
+      identity,
+      service: printHistory,
     });
     installHttpObservability(application, {
       service: apiArtifact,

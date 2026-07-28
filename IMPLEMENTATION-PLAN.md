@@ -26,7 +26,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
 | C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
 | C05 | In progress | Secure generation, worker dispatch, owner-scoped request/status/download APIs, and model-detail geometry/G-code rendering are composed; OBJ/3MF/STEP conversion and the required STEP approach decision remain |
-| C06 | Blocked | Core manifest, ZIP, durable jobs, API, and current-schema round trip complete; final artifact/history fields require C05 and P09 |
+| C06 | Blocked | Core manifest, ZIP, durable jobs, API, and current-schema round trip complete; P09 history is ready for portability, while final generated-artifact fields still require C05 |
 | C07 | Ready | Prerequisites C02 and M07 are complete |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |
 | M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
@@ -41,10 +41,12 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P06 | Complete | Single-use readiness challenges, atomic attempt/command creation, streamed OctoPrint upload and verification, remote start, ambiguous-result reconciliation, and worker/API composition passed PostgreSQL tests |
 | P07 | Ready | P06 is complete |
 | P08 | Ready | F04, F06, P02, and P05 are complete |
-| P09 | Ready | F06, F08, C02, and P06 are complete |
+| P09 | Complete | Immutable snapshots and append-only audit revisions, manual/external attempts, terminal reconciliation, outcome corrections, notes, reference-safe photos, model projections, failed-history filtering, and APIs passed PostgreSQL tests |
+| P10 | Ready | F04 and P09 are complete |
 | N01 | Ready | F05, F07, and P06 are complete |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
+| O04 | Ready | C03, C04, and P09 are complete |
 
 All tasks not listed above remain blocked by the DAG.
 

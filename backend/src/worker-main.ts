@@ -59,6 +59,8 @@ import {
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
   PrinterPollScheduler,
+  type PrintHistoryDatabaseSchema,
+  PrintHistoryService,
   PrintStartCommandService,
   type PrintStartDatabaseSchema,
   processNextPrinterPollJob,
@@ -75,6 +77,7 @@ export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   ImportDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
+  PrintHistoryDatabaseSchema &
   PreviewDatabaseSchema &
   QueueDatabaseSchema &
   PrintStartDatabaseSchema;
@@ -145,11 +148,16 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
           const printerSecrets = new SecretVault(configuration.masterKey);
           const printerDestinations = new PrinterDestinationPolicy();
           const monitoringGateway = new OctoPrintMonitoringGateway();
+          const printHistory = new PrintHistoryService(
+            database as unknown as Database<PrintHistoryDatabaseSchema>,
+            blobStore,
+          );
           const monitoring = new PrinterMonitoringService(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
             printerSecrets,
             printerDestinations,
             monitoringGateway,
+            { printHistory },
           );
           const printStartCommands = new PrintStartCommandService(
             database as unknown as Database<PrintStartDatabaseSchema>,

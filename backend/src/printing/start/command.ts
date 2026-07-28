@@ -184,7 +184,12 @@ export class PrintStartCommandService {
         .executeTakeFirstOrThrow();
       await transaction
         .updateTable('print_attempts')
-        .set({ state: 'printing', started_at: now, updated_at: now })
+        .set((expression) => ({
+          state: 'printing',
+          started_at: now,
+          updated_at: now,
+          version: expression('version', '+', 1),
+        }))
         .where('id', '=', entry.print_attempt_id as string)
         .executeTakeFirstOrThrow();
     });
@@ -214,7 +219,11 @@ export class PrintStartCommandService {
         .executeTakeFirstOrThrow();
       await transaction
         .updateTable('print_attempts')
-        .set({ state: 'reconciliation_required', updated_at: now })
+        .set((expression) => ({
+          state: 'reconciliation_required',
+          updated_at: now,
+          version: expression('version', '+', 1),
+        }))
         .where('id', '=', entry.print_attempt_id as string)
         .executeTakeFirstOrThrow();
     });
@@ -238,7 +247,13 @@ export class PrintStartCommandService {
         .executeTakeFirstOrThrow();
       await transaction
         .updateTable('print_attempts')
-        .set({ state: 'failed', outcome: 'failed', completed_at: now, updated_at: now })
+        .set((expression) => ({
+          state: 'failed',
+          outcome: 'failed',
+          completed_at: now,
+          updated_at: now,
+          version: expression('version', '+', 1),
+        }))
         .where('id', '=', entry.print_attempt_id as string)
         .executeTakeFirstOrThrow();
     });

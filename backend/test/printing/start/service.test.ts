@@ -55,6 +55,7 @@ integration('confirmed remote print start', () => {
     await migrate(database, '0013_printing_compatibility.up.sql');
     await migrate(database, '0014_print_queue.up.sql');
     await migrate(database, '0015_print_start.up.sql');
+    await migrate(database, '0016_print_history.up.sql');
     await database
       .insertInto('stored_objects')
       .values({

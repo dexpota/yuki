@@ -26,6 +26,7 @@ export interface CatalogueSearchInput {
   readonly assetFormat?: CatalogueAssetFormat;
   readonly importSource?: CatalogueImportSource;
   readonly printed?: boolean;
+  readonly failed?: boolean;
   readonly sort?: CatalogueSearchSort;
   readonly direction?: CatalogueSearchDirection;
   readonly cursor?: string;
@@ -152,6 +153,18 @@ export class CatalogueSearchService {
       filters.push(sql`m.import_source = ${input.importSource}`);
     if (input.printed !== undefined)
       filters.push(input.printed ? sql`m.print_count > 0` : sql`m.print_count = 0`);
+    if (input.failed !== undefined)
+      filters.push(
+        input.failed
+          ? sql`exists (
+              select 1 from print_attempts pa
+              where pa.owner_id = ${ownerId} and pa.model_id = m.id and pa.outcome = 'failed'
+            )`
+          : sql`not exists (
+              select 1 from print_attempts pa
+              where pa.owner_id = ${ownerId} and pa.model_id = m.id and pa.outcome = 'failed'
+            )`,
+      );
 
     if (input.cursor !== undefined) {
       const cursor = decodeCursor(input.cursor, sort, direction);

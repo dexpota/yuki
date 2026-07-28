@@ -48,6 +48,7 @@ export function registerCatalogueSearchFeature(
           ...(query.printed === undefined
             ? {}
             : { printed: booleanValue(query.printed, 'printed') }),
+          ...(query.failed === undefined ? {} : { failed: booleanValue(query.failed, 'failed') }),
           ...(query.sort === undefined ? {} : { sort: sortValue(query.sort) }),
           ...(query.direction === undefined ? {} : { direction: directionValue(query.direction) }),
           ...(query.cursor === undefined ? {} : { cursor: query.cursor }),

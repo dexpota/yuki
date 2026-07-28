@@ -16,13 +16,20 @@ export interface StartConfirmationTable {
   readonly consumed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
 }
 
-export type PrintAttemptState = 'starting' | 'printing' | 'reconciliation_required' | 'failed';
+export type PrintAttemptState =
+  | 'starting'
+  | 'printing'
+  | 'paused'
+  | 'reconciliation_required'
+  | 'completed'
+  | 'failed'
+  | 'cancelled';
 
 export interface PrintAttemptTable {
   readonly id: string;
   readonly owner_id: string;
-  readonly queue_entry_id: string;
-  readonly printer_id: string;
+  readonly queue_entry_id: string | null;
+  readonly printer_id: string | null;
   readonly model_id: string | null;
   readonly model_version_id: string | null;
   readonly asset_id: string | null;
@@ -37,6 +44,19 @@ export interface PrintAttemptTable {
   readonly completed_at: ColumnType<Date | null, Date | string | null, Date | string | null>;
   readonly created_at: ColumnType<Date, Date | string, never>;
   readonly updated_at: ColumnType<Date, Date | string, Date | string>;
+  readonly source: ColumnType<
+    'remote' | 'manual' | 'external',
+    'remote' | 'manual' | 'external' | undefined,
+    never
+  >;
+  readonly notes: ColumnType<string, string | undefined, string>;
+  readonly statistics: ColumnType<unknown, unknown | undefined, unknown>;
+  readonly creation_idempotency_key: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
+  readonly version: ColumnType<number, number | undefined, number>;
 }
 
 export type PrintStartDatabaseSchema = QueueDatabaseSchema & {
