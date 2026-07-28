@@ -36,6 +36,84 @@ export interface PortableVersionV1 {
   readonly assetIds: readonly string[];
 }
 
+export interface PortableGeneratedArtifactV1 {
+  readonly id: string;
+  readonly sourceAssetId: string;
+  readonly path: string;
+  readonly kind: 'geometry_preview' | 'thumbnail' | 'toolpath_preview';
+  readonly generator: string;
+  readonly generatorVersion: string;
+  readonly mimeType: string;
+  readonly byteSize: number;
+  readonly sha256: string;
+  readonly dimensions: Readonly<Record<string, unknown>> | null;
+  readonly summary: Readonly<Record<string, unknown>> | null;
+  readonly createdAt: string;
+  readonly completedAt: string;
+}
+
+export interface PortablePrintPhotoV1 {
+  readonly id: string;
+  readonly path: string;
+  readonly originalFilename: string;
+  readonly detectedMimeType: 'image/jpeg' | 'image/png' | 'image/webp';
+  readonly byteSize: number;
+  readonly sha256: string;
+  readonly createdAt: string;
+}
+
+export interface PortablePrintAttemptV1 {
+  readonly id: string;
+  readonly source: 'remote' | 'manual' | 'external';
+  readonly modelVersionId: string | null;
+  readonly assetId: string | null;
+  readonly state:
+    | 'starting'
+    | 'printing'
+    | 'paused'
+    | 'reconciliation_required'
+    | 'completed'
+    | 'failed'
+    | 'cancelled';
+  readonly outcome: 'successful' | 'failed' | 'cancelled' | 'unknown' | null;
+  readonly printerSnapshot: Readonly<Record<string, unknown>>;
+  readonly modelSnapshot: Readonly<Record<string, unknown>>;
+  readonly assetSnapshot: Readonly<Record<string, unknown>>;
+  readonly compatibilitySnapshot: Readonly<Record<string, unknown>>;
+  readonly overrideJustification: string | null;
+  readonly notes: string;
+  readonly statistics: Readonly<Record<string, unknown>>;
+  readonly startedAt: string | null;
+  readonly completedAt: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly events: readonly {
+    readonly kind:
+      | 'created'
+      | 'printing'
+      | 'paused'
+      | 'resumed'
+      | 'completed'
+      | 'failed'
+      | 'cancelled'
+      | 'reconciliation_required'
+      | 'observation';
+    readonly facts: Readonly<Record<string, unknown>>;
+    readonly recordedAt: string;
+  }[];
+  readonly outcomeCorrections: readonly {
+    readonly previousOutcome: 'successful' | 'failed' | 'cancelled' | 'unknown' | null;
+    readonly outcome: 'successful' | 'failed' | 'cancelled' | 'unknown';
+    readonly reason: string;
+    readonly correctedAt: string;
+  }[];
+  readonly noteRevisions: readonly {
+    readonly notes: string;
+    readonly createdAt: string;
+  }[];
+  readonly photos: readonly PortablePrintPhotoV1[];
+}
+
 export interface YukiExportManifestV1 {
   readonly format: typeof YUKI_EXPORT_FORMAT;
   readonly version: typeof YUKI_EXPORT_VERSION;
@@ -56,10 +134,8 @@ export interface YukiExportManifestV1 {
   readonly assets: readonly PortableAssetV1[];
   readonly tags: readonly string[];
   readonly collections: readonly { readonly name: string; readonly description: string }[];
-  /** Reserved until generated-artifact persistence is implemented. Must be empty in v1. */
-  readonly generatedArtifacts: readonly never[];
-  /** Reserved until print-history persistence is implemented. Must be empty in v1. */
-  readonly printHistory: readonly never[];
+  readonly generatedArtifacts: readonly PortableGeneratedArtifactV1[];
+  readonly printHistory: readonly PortablePrintAttemptV1[];
 }
 
 export class InvalidPortablePackageError extends Error {
@@ -109,9 +185,10 @@ export function parseManifestV1(value: unknown): YukiExportManifestV1 {
     exactKeys(item, ['name', 'description']);
     return { name: text(item.name, 200), description: text(item.description, 20_000, true) };
   });
-  if (array(root.generatedArtifacts, 'generatedArtifacts').length !== 0)
-    invalid('unsupported_generated_artifacts');
-  if (array(root.printHistory, 'printHistory').length !== 0) invalid('unsupported_print_history');
+  const generatedArtifacts = array(root.generatedArtifacts, 'generatedArtifacts').map(
+    parseGeneratedArtifact,
+  );
+  const printHistory = array(root.printHistory, 'printHistory').map(parsePrintAttempt);
   const parsedModel = {
     id: id(model.id),
     name: text(model.name, 300),
@@ -125,7 +202,14 @@ export function parseManifestV1(value: unknown): YukiExportManifestV1 {
     createdAt: timestamp(model.createdAt),
     updatedAt: timestamp(model.updatedAt),
   };
-  validateRelationships(parsedModel.currentVersionId, parsedModel.coverAssetId, versions, assets);
+  validateRelationships(
+    parsedModel.currentVersionId,
+    parsedModel.coverAssetId,
+    versions,
+    assets,
+    generatedArtifacts,
+    printHistory,
+  );
   return {
     format: YUKI_EXPORT_FORMAT,
     version: YUKI_EXPORT_VERSION,
@@ -138,8 +222,8 @@ export function parseManifestV1(value: unknown): YukiExportManifestV1 {
       (item) => item.name.trim().toLowerCase(),
       'duplicate_collection',
     ),
-    generatedArtifacts: [],
-    printHistory: [],
+    generatedArtifacts,
+    printHistory,
   };
 }
 
@@ -224,11 +308,174 @@ function parseAsset(value: unknown): PortableAssetV1 {
   };
 }
 
+function parseGeneratedArtifact(value: unknown): PortableGeneratedArtifactV1 {
+  const item = record(value, 'generated_artifact');
+  exactKeys(item, [
+    'id',
+    'sourceAssetId',
+    'path',
+    'kind',
+    'generator',
+    'generatorVersion',
+    'mimeType',
+    'byteSize',
+    'sha256',
+    'dimensions',
+    'summary',
+    'createdAt',
+    'completedAt',
+  ]);
+  const artifactId = id(item.id);
+  const sourceAssetId = id(item.sourceAssetId);
+  const path = portablePath(item.path, `generated/${sourceAssetId}/${artifactId}`);
+  return {
+    id: artifactId,
+    sourceAssetId,
+    path,
+    kind: enumValue(item.kind, ['geometry_preview', 'thumbnail', 'toolpath_preview'] as const),
+    generator: text(item.generator, 100),
+    generatorVersion: text(item.generatorVersion, 100),
+    mimeType: text(item.mimeType, 255),
+    byteSize: integer(item.byteSize, 0, Number.MAX_SAFE_INTEGER),
+    sha256: checksum(item.sha256),
+    dimensions: nullableRecord(item.dimensions, 'dimensions'),
+    summary: nullableRecord(item.summary, 'summary'),
+    createdAt: timestamp(item.createdAt),
+    completedAt: timestamp(item.completedAt),
+  };
+}
+
+function parsePrintAttempt(value: unknown): PortablePrintAttemptV1 {
+  const item = record(value, 'print_attempt');
+  exactKeys(item, [
+    'id',
+    'source',
+    'modelVersionId',
+    'assetId',
+    'state',
+    'outcome',
+    'printerSnapshot',
+    'modelSnapshot',
+    'assetSnapshot',
+    'compatibilitySnapshot',
+    'overrideJustification',
+    'notes',
+    'statistics',
+    'startedAt',
+    'completedAt',
+    'createdAt',
+    'updatedAt',
+    'events',
+    'outcomeCorrections',
+    'noteRevisions',
+    'photos',
+  ]);
+  const attemptId = id(item.id);
+  const outcomes = ['successful', 'failed', 'cancelled', 'unknown'] as const;
+  return {
+    id: attemptId,
+    source: enumValue(item.source, ['remote', 'manual', 'external'] as const),
+    modelVersionId: nullableId(item.modelVersionId),
+    assetId: nullableId(item.assetId),
+    state: enumValue(item.state, [
+      'starting',
+      'printing',
+      'paused',
+      'reconciliation_required',
+      'completed',
+      'failed',
+      'cancelled',
+    ] as const),
+    outcome: item.outcome === null ? null : enumValue(item.outcome, outcomes),
+    printerSnapshot: record(item.printerSnapshot, 'printer_snapshot'),
+    modelSnapshot: record(item.modelSnapshot, 'model_snapshot'),
+    assetSnapshot: record(item.assetSnapshot, 'asset_snapshot'),
+    compatibilitySnapshot: record(item.compatibilitySnapshot, 'compatibility_snapshot'),
+    overrideJustification: nullableText(item.overrideJustification, 10_000),
+    notes: text(item.notes, 10_000, true),
+    statistics: record(item.statistics, 'statistics'),
+    startedAt: nullableTimestamp(item.startedAt),
+    completedAt: nullableTimestamp(item.completedAt),
+    createdAt: timestamp(item.createdAt),
+    updatedAt: timestamp(item.updatedAt),
+    events: array(item.events, 'events').map((value) => {
+      const event = record(value, 'event');
+      exactKeys(event, ['kind', 'facts', 'recordedAt']);
+      return {
+        kind: enumValue(event.kind, [
+          'created',
+          'printing',
+          'paused',
+          'resumed',
+          'completed',
+          'failed',
+          'cancelled',
+          'reconciliation_required',
+          'observation',
+        ] as const),
+        facts: record(event.facts, 'event_facts'),
+        recordedAt: timestamp(event.recordedAt),
+      };
+    }),
+    outcomeCorrections: array(item.outcomeCorrections, 'outcomeCorrections').map((value) => {
+      const correction = record(value, 'outcome_correction');
+      exactKeys(correction, ['previousOutcome', 'outcome', 'reason', 'correctedAt']);
+      return {
+        previousOutcome:
+          correction.previousOutcome === null
+            ? null
+            : enumValue(correction.previousOutcome, outcomes),
+        outcome: enumValue(correction.outcome, outcomes),
+        reason: text(correction.reason, 1000),
+        correctedAt: timestamp(correction.correctedAt),
+      };
+    }),
+    noteRevisions: array(item.noteRevisions, 'noteRevisions').map((value) => {
+      const revision = record(value, 'note_revision');
+      exactKeys(revision, ['notes', 'createdAt']);
+      return {
+        notes: text(revision.notes, 10_000, true),
+        createdAt: timestamp(revision.createdAt),
+      };
+    }),
+    photos: array(item.photos, 'photos').map((value) => parsePrintPhoto(value, attemptId)),
+  };
+}
+
+function parsePrintPhoto(value: unknown, attemptId: string): PortablePrintPhotoV1 {
+  const item = record(value, 'print_photo');
+  exactKeys(item, [
+    'id',
+    'path',
+    'originalFilename',
+    'detectedMimeType',
+    'byteSize',
+    'sha256',
+    'createdAt',
+  ]);
+  const photoId = id(item.id);
+  return {
+    id: photoId,
+    path: portablePath(item.path, `history/${attemptId}/photos/${photoId}`),
+    originalFilename: text(item.originalFilename, 1024),
+    detectedMimeType: enumValue(item.detectedMimeType, [
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+    ] as const),
+    byteSize: integer(item.byteSize, 1, 26_214_400),
+    sha256: checksum(item.sha256),
+    createdAt: timestamp(item.createdAt),
+  };
+}
+
 function validateRelationships(
   currentVersionId: string,
   coverAssetId: string | null,
   versions: readonly PortableVersionV1[],
   assets: readonly PortableAssetV1[],
+  generatedArtifacts: readonly PortableGeneratedArtifactV1[],
+  printHistory: readonly PortablePrintAttemptV1[],
 ): void {
   if (versions.length === 0 || assets.length === 0) invalid('empty_model');
   const versionIds = new Set(
@@ -267,6 +514,37 @@ function validateRelationships(
     )
   )
     invalid('unreferenced_asset');
+  const allPaths = new Set(assets.map((asset) => asset.path));
+  uniqueBy(generatedArtifacts, (artifact) => artifact.id, 'duplicate_generated_artifact');
+  for (const artifact of generatedArtifacts) {
+    if (!assetIds.has(artifact.sourceAssetId)) invalid('missing_artifact_asset');
+    if (allPaths.has(artifact.path)) invalid('duplicate_payload_path');
+    allPaths.add(artifact.path);
+  }
+  uniqueBy(printHistory, (attempt) => attempt.id, 'duplicate_print_attempt');
+  uniqueBy(
+    printHistory.flatMap((attempt) => attempt.photos),
+    (photo) => photo.id,
+    'duplicate_print_photo',
+  );
+  for (const attempt of printHistory) {
+    if (attempt.modelVersionId !== null && !versionIds.has(attempt.modelVersionId))
+      invalid('missing_print_version');
+    if (attempt.assetId !== null && !assetIds.has(attempt.assetId)) invalid('missing_print_asset');
+    if (
+      attempt.modelVersionId !== null &&
+      attempt.assetId !== null &&
+      assets.find((asset) => asset.id === attempt.assetId)?.versionId !== attempt.modelVersionId
+    )
+      invalid('invalid_print_asset_version');
+    if ((attempt.outcome === null) !== (attempt.completedAt === null))
+      invalid('invalid_print_completion');
+    if (attempt.state === 'printing' && attempt.startedAt === null) invalid('invalid_print_start');
+    for (const photo of attempt.photos) {
+      if (allPaths.has(photo.path)) invalid('duplicate_payload_path');
+      allPaths.add(photo.path);
+    }
+  }
 }
 
 function record(value: unknown, label: string): Record<string, unknown> {
@@ -315,6 +593,23 @@ function timestamp(value: unknown): string {
     !Number.isFinite(Date.parse(result))
   )
     invalid('invalid_timestamp');
+  return result;
+}
+function nullableTimestamp(value: unknown): string | null {
+  return value === null ? null : timestamp(value);
+}
+function nullableRecord(value: unknown, label: string): Readonly<Record<string, unknown>> | null {
+  return value === null ? null : record(value, label);
+}
+function checksum(value: unknown): string {
+  const result = text(value, 64);
+  if (!checksumPattern.test(result)) invalid('invalid_checksum');
+  return result;
+}
+function portablePath(value: unknown, expected: string): string {
+  const result = text(value, 2048);
+  if (result !== expected || result.includes('..') || result.includes('\\'))
+    invalid('unsafe_payload_path');
   return result;
 }
 function exactKeys(value: Record<string, unknown>, expected: readonly string[]): void {

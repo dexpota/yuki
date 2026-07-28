@@ -45,6 +45,13 @@ integration('catalogue export and re-import', () => {
     await sql`insert into identity_users (id) values (${ownerId})`.execute(database);
     await migrate(database, '0004_catalogue.up.sql');
     await migrate(database, '0007_catalogue_portability.up.sql');
+    await migrate(database, '0008_printers.up.sql');
+    await migrate(database, '0010_catalogue_previews.up.sql');
+    await migrate(database, '0011_printer_monitoring.up.sql');
+    await migrate(database, '0013_printing_compatibility.up.sql');
+    await migrate(database, '0014_print_queue.up.sql');
+    await migrate(database, '0015_print_start.up.sql');
+    await migrate(database, '0016_print_history.up.sql');
     storageRoot = join(tmpdir(), `yuki-c06-${process.pid}-${Date.now()}`);
     blobs = await LocalBlobStore.create(storageRoot);
   });
@@ -88,6 +95,78 @@ integration('catalogue export and re-import', () => {
     await catalogue.replaceTags(ownerId, source.model.id, ['Calibration', 'Cube']);
     const collection = await catalogue.createCollection(ownerId, 'Tests', 'Test pieces');
     await catalogue.replaceCollections(ownerId, source.model.id, [collection.id]);
+    const preview = await register(
+      Buffer.from('preview-glb'),
+      '76000000-0000-4000-8000-000000000003',
+    );
+    const photo = await register(
+      Buffer.from('print-photo'),
+      '76000000-0000-4000-8000-000000000004',
+    );
+    const attemptId = '86000000-0000-4000-8000-000000000001';
+    const completedAt = new Date('2026-06-02T12:00:00.000Z');
+    await sql`
+      insert into catalogue_generated_artifacts (
+        id, owner_id, source_asset_id, kind, status, generator, generator_version,
+        stored_object_id, mime_type, byte_size, dimensions, summary, attempt,
+        created_at, updated_at, completed_at
+      ) values (
+        ${'66000000-0000-4000-8000-000000000001'}, ${ownerId},
+        ${'56000000-0000-4000-8000-000000000001'}, 'geometry_preview', 'ready',
+        'yuki-geometry-preview', '1', ${preview.objectId}, 'model/gltf-binary',
+        ${preview.size}, ${{ width: 10, height: 10 }}, ${{ triangles: 12 }}, 1,
+        ${new Date('2026-06-01T12:00:00.000Z')}, ${completedAt}, ${completedAt}
+      )
+    `.execute(database);
+    await sql`
+      insert into print_attempts (
+        id, owner_id, queue_entry_id, printer_id, model_id, model_version_id, asset_id,
+        state, outcome, printer_snapshot, model_snapshot, asset_snapshot,
+        compatibility_snapshot, override_justification, started_at, completed_at,
+        created_at, updated_at, source, notes, statistics, version
+      ) values (
+        ${attemptId}, ${ownerId}, null, null, ${source.model.id},
+        ${'36000000-0000-4000-8000-000000000001'},
+        ${'56000000-0000-4000-8000-000000000001'}, 'failed', 'failed',
+        ${{ id: 'printer-local', name: 'Retired printer' }},
+        ${{ id: source.model.id, versionId: '36000000-0000-4000-8000-000000000001' }},
+        ${{ id: '56000000-0000-4000-8000-000000000001', checksum: first.checksum }},
+        ${{ status: 'compatible' }}, null, ${new Date('2026-06-02T11:00:00.000Z')},
+        ${completedAt}, ${new Date('2026-06-02T10:59:00.000Z')}, ${completedAt},
+        'manual', 'Layer shift', ${{ durationSeconds: 3600 }}, 3
+      )
+    `.execute(database);
+    await sql`
+      insert into print_attempt_events (owner_id, print_attempt_id, kind, facts, recorded_at)
+      values (${ownerId}, ${attemptId}, 'observation', ${{ progressPercent: 50 }},
+        ${new Date('2026-06-02T11:30:00.000Z')})
+    `.execute(database);
+    await sql`
+      insert into print_attempt_outcome_corrections (
+        id, owner_id, print_attempt_id, previous_outcome, outcome, reason, corrected_at
+      ) values (
+        ${'96000000-0000-4000-8000-000000000001'}, ${ownerId}, ${attemptId},
+        'successful', 'failed', 'Visible layer shift', ${completedAt}
+      )
+    `.execute(database);
+    await sql`
+      insert into print_attempt_note_revisions (
+        id, owner_id, print_attempt_id, notes, created_at
+      ) values (
+        ${'96000000-0000-4000-8000-000000000002'}, ${ownerId}, ${attemptId},
+        'Layer shift', ${completedAt}
+      )
+    `.execute(database);
+    await sql`
+      insert into print_attempt_photos (
+        id, owner_id, print_attempt_id, stored_object_id, original_filename,
+        detected_mime_type, byte_size, checksum, created_at
+      ) values (
+        ${'96000000-0000-4000-8000-000000000003'}, ${ownerId}, ${attemptId},
+        ${photo.objectId}, 'failure.webp', 'image/webp', ${photo.size}, ${photo.checksum},
+        ${completedAt}
+      )
+    `.execute(database);
 
     const portability = new CataloguePortabilityService(database, blobs, {
       storageBackend: 'local',
@@ -150,6 +229,8 @@ integration('catalogue export and re-import', () => {
       creator: 'Maker',
       license: 'CC0',
       favorite: true,
+      print_count: 1,
+      last_printed_at: completedAt,
     });
     expect(result.versions.map((item) => item.label).sort()).toEqual(['v1', 'v2']);
     expect(result.versions.find((item) => item.id === result.model.current_version_id)?.label).toBe(
@@ -165,6 +246,58 @@ integration('catalogue export and re-import', () => {
     expect(result.collections).toEqual([
       { id: expect.any(String), name: 'Tests', description: 'Test pieces' },
     ]);
+    const importedPreview = await sql<{
+      checksum: string;
+      source_checksum: string;
+      dimensions: unknown;
+    }>`
+      select object.checksum, asset.checksum as source_checksum, artifact.dimensions
+      from catalogue_generated_artifacts artifact
+      join catalogue_assets asset on asset.id = artifact.source_asset_id
+      join stored_objects object on object.id = artifact.stored_object_id
+      where asset.model_id = ${imported.importedModelId}
+    `.execute(database);
+    expect(importedPreview.rows).toEqual([
+      {
+        checksum: preview.checksum,
+        source_checksum: first.checksum,
+        dimensions: { width: 10, height: 10 },
+      },
+    ]);
+    const importedHistory = await sql<{
+      printer_id: string | null;
+      model_id: string;
+      model_snapshot: { id: string; versionId: string };
+      asset_snapshot: { id: string; checksum: string };
+      notes: string;
+      event_count: string;
+      correction_count: string;
+      revision_count: string;
+      photo_checksum: string;
+    }>`
+      select attempt.printer_id, attempt.model_id, attempt.model_snapshot,
+        attempt.asset_snapshot, attempt.notes,
+        (select count(*) from print_attempt_events where print_attempt_id = attempt.id) as event_count,
+        (select count(*) from print_attempt_outcome_corrections where print_attempt_id = attempt.id)
+          as correction_count,
+        (select count(*) from print_attempt_note_revisions where print_attempt_id = attempt.id)
+          as revision_count,
+        photo.checksum as photo_checksum
+      from print_attempts attempt
+      join print_attempt_photos photo on photo.print_attempt_id = attempt.id
+      where attempt.model_id = ${imported.importedModelId}
+    `.execute(database);
+    expect(importedHistory.rows[0]).toMatchObject({
+      printer_id: null,
+      model_id: imported.importedModelId,
+      model_snapshot: { id: imported.importedModelId, versionId: expect.any(String) },
+      asset_snapshot: { id: expect.any(String), checksum: first.checksum },
+      notes: 'Layer shift',
+      event_count: '2',
+      correction_count: '1',
+      revision_count: '1',
+      photo_checksum: photo.checksum,
+    });
   });
 
   async function register(bytes: Buffer, objectId: string) {

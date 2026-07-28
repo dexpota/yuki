@@ -26,7 +26,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
 | C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
 | C05 | Complete | Bounded STL/OBJ/3MF/STEP-to-GLB and G-code layer conversion, dimensions, thumbnails, restricted worker dispatch, APIs, and interactive rendering are composed; real Open Cascade STEP conversion passed in the production processor image |
-| C06 | Ready | C05 and P09 are complete; the existing portability implementation can now be reconciled with final generated-artifact and print-history fields |
+| C06 | Complete | Strict streaming export/re-import now preserves published versions/assets, ready generated artifacts, immutable print history/audits/photos, and fresh portable relationships; full PostgreSQL round-trip and repository checks pass |
 | C07 | Ready | Prerequisites C02 and M07 are complete |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |
 | M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
