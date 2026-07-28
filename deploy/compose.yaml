@@ -77,7 +77,7 @@ services:
   migrate:
     image: yuki-backend:development
     build: *backend-build
-    command: ["pnpm", "migrate"]
+    command: ["node", "dist/platform/database/migrate-main.js", "up"]
     restart: "no"
     environment:
       YUKI_DATABASE_URL: postgresql://${YUKI_POSTGRES_USER:-yuki}:${YUKI_POSTGRES_PASSWORD:-yuki-development-only}@postgres:5432/${YUKI_POSTGRES_DB:-yuki}
@@ -90,11 +90,14 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
 
   api:
     image: yuki-backend:development
     build: *backend-build
-    command: ["pnpm", "start:api"]
+    command: ["node", "dist/api-main.js"]
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -137,6 +140,7 @@ services:
 
   processor-bridge:
     image: node:24.18.0-alpine3.23
+    user: "65532:65532"
     command: ["node", "/bridge/processor-tcp-bridge.mjs"]
     restart: unless-stopped
     environment:
@@ -176,7 +180,7 @@ services:
   worker:
     image: yuki-backend:development
     build: *backend-build
-    command: ["pnpm", "start:worker"]
+    command: ["node", "dist/worker-main.js"]
     restart: unless-stopped
     environment:
       NODE_ENV: development
@@ -227,7 +231,17 @@ services:
     build:
       context: ..
       dockerfile: frontend/Dockerfile
-    command: ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
+    command:
+      [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "--configLoader",
+        "runner",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "5173",
+      ]
     restart: unless-stopped
     networks:
       - application
@@ -247,6 +261,9 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    read_only: true
+    tmpfs:
+      - /workspace/frontend/node_modules/.vite:size=64m,uid=1000,gid=1000,mode=0755
 
 networks:
   edge:

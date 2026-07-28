@@ -105,6 +105,22 @@ describe('HTTP application conventions', () => {
     expect(rejected.statusCode).toBe(403);
     expect(rejected.json().error.code).toBe('csrf_origin_rejected');
 
+    for (const [origin, token, code] of [
+      [undefined, 'session-token', 'csrf_origin_rejected'],
+      ['null', 'session-token', 'csrf_origin_rejected'],
+      ['https://yuki.local', 'wrong-token', 'csrf_token_invalid'],
+    ] as const) {
+      const headers: Record<string, string> = { 'x-csrf-token': token };
+      if (origin !== undefined) headers.origin = origin;
+      const response = await application.inject({
+        method: 'POST',
+        url: '/api/v1/mutation',
+        headers,
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().error.code).toBe(code);
+    }
+
     const accepted = await application.inject({
       method: 'POST',
       url: '/api/v1/mutation',

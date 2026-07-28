@@ -15,6 +15,8 @@ describe('JSON logger', () => {
       cookie: 'session=abc',
       nested: { apiKey: 'abc', safe: 'visible' },
       url: 'https://storage.test/file?signature=secret&part=1',
+      databaseUrl: 'postgresql://database-user:database-password@database.test/yuki',
+      upstream: 'https://upstream-user:upstream-password@storage.test/file',
       authorizationHeader: 'Bearer credential',
     });
 
@@ -28,6 +30,8 @@ describe('JSON logger', () => {
       cookie: '[REDACTED]',
       nested: { apiKey: '[REDACTED]', safe: 'visible' },
       url: 'https://storage.test/file?signature=[REDACTED]&part=1',
+      databaseUrl: 'postgresql://[REDACTED]@database.test/yuki',
+      upstream: 'https://[REDACTED]@storage.test/file',
       authorizationHeader: '[REDACTED]',
     });
   });

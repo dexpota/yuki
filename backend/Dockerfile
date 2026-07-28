@@ -14,6 +14,10 @@ RUN pnpm install --filter yuki --filter @yuki/backend --frozen-lockfile
 COPY backend/migrations ./backend/migrations
 COPY backend/src ./backend/src
 RUN pnpm --filter @yuki/backend build
+RUN chmod -R a=rX /workspace \
+  && mkdir -p /data/yuki \
+  && chown node:node /data/yuki
 
 WORKDIR /workspace/backend
-CMD ["pnpm", "start:api"]
+USER node
+CMD ["node", "dist/api-main.js"]

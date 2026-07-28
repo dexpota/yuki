@@ -29,6 +29,7 @@ const secretKey =
 const sensitiveQueryParameter =
   /([?&](?:access_token|api_key|credential|password|secret|signature|token)=)[^&#\s]*/gi;
 const bearerCredential = /\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi;
+const urlUserInfo = /(\b[a-z][a-z0-9+.-]*:\/\/)[^/\s@]+@/gi;
 const redacted = '[REDACTED]';
 
 export function createJsonLogger(options: JsonLoggerOptions): Logger {
@@ -66,6 +67,7 @@ export function sanitize(value: unknown, key = '', seen = new WeakSet<object>())
   if (secretKey.test(key)) return redacted;
   if (typeof value === 'string') {
     return value
+      .replace(urlUserInfo, `$1${redacted}@`)
       .replace(sensitiveQueryParameter, `$1${redacted}`)
       .replace(bearerCredential, `$1 ${redacted}`);
   }

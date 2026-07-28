@@ -12,5 +12,9 @@ COPY processor/package.json ./processor/
 RUN pnpm install --filter yuki --filter @yuki/frontend --frozen-lockfile
 
 COPY frontend/src ./frontend/src
+RUN chmod -R a=rX /workspace \
+  && mkdir -p /workspace/frontend/node_modules/.vite \
+  && chown -R node:node /workspace/frontend/node_modules/.vite
 WORKDIR /workspace/frontend
-CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
+USER node
+CMD ["node", "node_modules/vite/bin/vite.js", "--configLoader", "runner", "--host", "0.0.0.0", "--port", "5173"]

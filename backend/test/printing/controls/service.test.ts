@@ -161,6 +161,30 @@ integration('confirmed printer controls', () => {
 
     const poll = vi.fn(async () => monitoringView(printerId, entry.id, 'printing'));
     const controls = new PrinterControlService(database, { poll });
+    const issuedAt = new Date('2026-07-28T12:00:00.000Z');
+    const expiringControls = new PrinterControlService(
+      database,
+      { poll: async () => monitoringView(printerId, entry.id, 'printing') },
+      {
+        now: () => issuedAt,
+        confirmationTtlMs: 1_000,
+      },
+    );
+    const expiredChallenge = await expiringControls.issue(ownerId, printerId, {
+      action: 'pause',
+      queueEntryId: entry.id,
+    });
+    const expiredControls = new PrinterControlService(
+      database,
+      { poll },
+      {
+        now: () => new Date(issuedAt.getTime() + 1_000),
+      },
+    );
+    await expect(
+      expiredControls.accept(ownerId, printerId, expiredChallenge.token),
+    ).rejects.toThrow('Control confirmation has expired.');
+
     const challenge = await controls.issue(ownerId, printerId, {
       action: 'pause',
       queueEntryId: entry.id,

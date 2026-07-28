@@ -147,6 +147,27 @@ integration('confirmed remote print start', () => {
     await expect(starts.issue(ownerId, second.id)).rejects.toThrow(
       'Only the first queued job can be started.',
     );
+    const issuedAt = new Date('2026-07-28T12:00:00.000Z');
+    const expiringStarts = new PrintStartService(
+      database,
+      { poll },
+      {
+        now: () => issuedAt,
+        confirmationTtlMs: 1_000,
+      },
+    );
+    const expiredChallenge = await expiringStarts.issue(ownerId, entry.id);
+    const expiredStarts = new PrintStartService(
+      database,
+      { poll },
+      {
+        now: () => new Date(issuedAt.getTime() + 1_000),
+      },
+    );
+    await expect(expiredStarts.accept(ownerId, entry.id, expiredChallenge.token)).rejects.toThrow(
+      'Start confirmation has expired.',
+    );
+
     const challenge = await starts.issue(ownerId, entry.id);
     expect(challenge).toMatchObject({
       printer: { id: printerId, name: 'Workshop' },

@@ -42,6 +42,8 @@ export class PrinterDestinationPolicy {
     if (parsed.search || parsed.hash)
       throw new UnsafePrinterDestinationError('Printer URL must not contain a query or fragment');
     const hostname = parsed.hostname.toLowerCase().replace(/\.$/, '');
+    const lookupHostname =
+      hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
     if (!hostname || hostname === 'localhost' || hostname.endsWith('.localhost'))
       throw new UnsafePrinterDestinationError('Printer hostname is not allowed');
     if (this.#allowedHostnames && !this.#allowedHostnames.has(hostname))
@@ -49,7 +51,9 @@ export class PrinterDestinationPolicy {
 
     let addresses: readonly string[];
     try {
-      addresses = isIP(hostname) ? [hostname] : await this.#lookupAddresses(hostname);
+      addresses = isIP(lookupHostname)
+        ? [lookupHostname]
+        : await this.#lookupAddresses(lookupHostname);
     } catch {
       throw new UnsafePrinterDestinationError('Printer hostname could not be resolved');
     }
@@ -70,7 +74,19 @@ async function resolveAddresses(hostname: string): Promise<readonly string[]> {
 }
 
 function addressAllowed(address: string, allowPrivateNetworks: boolean): boolean {
-  if (address.includes(':')) return ipv6Allowed(address, allowPrivateNetworks);
+  const normalized = address.toLowerCase().split('%')[0] ?? '';
+  const version = isIP(normalized);
+  if (version === 6) {
+    const mapped = mappedIpv4(normalized);
+    return mapped === null
+      ? ipv6Allowed(normalized, allowPrivateNetworks)
+      : ipv4Allowed(mapped, allowPrivateNetworks);
+  }
+  if (version !== 4) return false;
+  return ipv4Allowed(normalized, allowPrivateNetworks);
+}
+
+function ipv4Allowed(address: string, allowPrivateNetworks: boolean): boolean {
   const octets = address.split('.').map(Number);
   if (
     octets.length !== 4 ||
@@ -86,17 +102,46 @@ function addressAllowed(address: string, allowPrivateNetworks: boolean): boolean
 }
 
 function ipv6Allowed(address: string, allowPrivateNetworks: boolean): boolean {
-  const normalized = address.toLowerCase().split('%')[0] ?? '';
-  if (
-    normalized === '::' ||
-    normalized === '::1' ||
-    normalized.startsWith('fe8') ||
-    normalized.startsWith('fe9') ||
-    normalized.startsWith('fea') ||
-    normalized.startsWith('feb')
-  )
-    return false;
-  if (normalized.startsWith('ff')) return false;
-  const privateAddress = normalized.startsWith('fc') || normalized.startsWith('fd');
+  const segments = ipv6Segments(address);
+  if (segments === null) return false;
+  const first = segments[0] as number;
+  if (segments.every((segment) => segment === 0)) return false;
+  if (segments.slice(0, 7).every((segment) => segment === 0) && segments[7] === 1) return false;
+  if ((first & 0xff00) === 0xff00 || (first & 0xffc0) === 0xfe80) return false;
+  const privateAddress = (first & 0xfe00) === 0xfc00;
   return allowPrivateNetworks || !privateAddress;
+}
+
+function mappedIpv4(address: string): string | null {
+  const segments = ipv6Segments(address);
+  if (segments === null) return null;
+  const compatible = segments.slice(0, 6).every((segment) => segment === 0);
+  const mapped = segments.slice(0, 5).every((segment) => segment === 0) && segments[5] === 0xffff;
+  if (!compatible && !mapped) return null;
+  const high = segments[6] as number;
+  const low = segments[7] as number;
+  return `${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`;
+}
+
+function ipv6Segments(address: string): readonly number[] | null {
+  let normalized = address.toLowerCase();
+  const dotted = normalized.match(/(\d{1,3}(?:\.\d{1,3}){3})$/)?.[1];
+  if (dotted !== undefined) {
+    if (isIP(dotted) !== 4) return null;
+    const octets = dotted.split('.').map(Number);
+    normalized = `${normalized.slice(0, -dotted.length)}${(
+      ((octets[0] as number) << 8) | (octets[1] as number)
+    ).toString(16)}:${(((octets[2] as number) << 8) | (octets[3] as number)).toString(16)}`;
+  }
+  const halves = normalized.split('::');
+  if (halves.length > 2) return null;
+  const left = halves[0] === '' ? [] : (halves[0] as string).split(':');
+  const right = halves.length === 1 || halves[1] === '' ? [] : (halves[1] as string).split(':');
+  const missing = 8 - left.length - right.length;
+  if ((halves.length === 1 && missing !== 0) || (halves.length === 2 && missing < 1)) return null;
+  const groups = [...left, ...Array.from({ length: missing }, () => '0'), ...right];
+  const segments = groups.map((group) => Number.parseInt(group, 16));
+  return segments.length === 8 && segments.every((segment) => Number.isInteger(segment))
+    ? segments
+    : null;
 }

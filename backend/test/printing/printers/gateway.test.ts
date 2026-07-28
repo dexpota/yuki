@@ -40,6 +40,44 @@ describe('printer destination policy', () => {
       'address is not allowed',
     );
   });
+
+  it('applies IPv4 protections to mapped IPv6 answers and rejects malformed resolver output', async () => {
+    for (const address of [
+      '::ffff:127.0.0.1',
+      '0:0:0:0:0:ffff:7f00:1',
+      '::ffff:169.254.169.254',
+      'not-an-address',
+    ]) {
+      const policy = new PrinterDestinationPolicy({ lookupAddresses: async () => [address] });
+      await expect(policy.validate('http://printer.example.test')).rejects.toBeInstanceOf(
+        UnsafePrinterDestinationError,
+      );
+    }
+
+    const privatePolicy = new PrinterDestinationPolicy({
+      allowPrivateNetworks: false,
+      lookupAddresses: async () => ['::ffff:10.0.0.1'],
+    });
+    await expect(privatePolicy.validate('http://printer.example.test')).rejects.toBeInstanceOf(
+      UnsafePrinterDestinationError,
+    );
+  });
+
+  it('classifies direct IPv6 literals without a second DNS resolution', async () => {
+    const lookupAddresses = vi.fn(async () => {
+      throw new Error('must not resolve a literal');
+    });
+    const policy = new PrinterDestinationPolicy({ lookupAddresses });
+
+    await expect(policy.validate('http://[2001:4860:4860::8888]:5000/')).resolves.toEqual({
+      origin: 'http://[2001:4860:4860::8888]:5000',
+      baseUrl: 'http://[2001:4860:4860::8888]:5000/',
+    });
+    await expect(policy.validate('http://[0:0:0:0:0:0:0:1]:5000/')).rejects.toBeInstanceOf(
+      UnsafePrinterDestinationError,
+    );
+    expect(lookupAddresses).not.toHaveBeenCalled();
+  });
 });
 
 describe('OctoPrint webcam gateway', () => {

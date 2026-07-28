@@ -48,7 +48,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | N03 | Complete | The authenticated shell now shows a five-second live unread badge; the notification center supports unread filtering, per-item read state, mark-all-read, event context links, and tested error/empty states |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
-| O02 | Ready | C05 and P07 complete the remaining security-hardening prerequisites |
+| O02 | Complete | Hostile parser/archive, mapped-IPv6 SSRF, URL-credential redaction, CSRF, expiring single-use confirmation, and non-root/read-only container checks pass; live migration, API, frontend, and processor image probes verified |
 | O04 | Ready | C03, C04, and P09 are complete |
 
 All tasks not listed above remain blocked by the DAG.
