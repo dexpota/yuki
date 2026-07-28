@@ -17,6 +17,11 @@ import {
   type PrinterServiceOptions,
   type UpdatePrinterInput,
 } from './service.js';
+import {
+  OctoPrintWebcamGateway,
+  type OctoPrintWebcamGatewayOptions,
+  PrinterWebcamService,
+} from './webcam.js';
 
 export interface PrinterIdentityBoundary {
   readonly requireOwner: (request: FastifyRequest) => Promise<void>;
@@ -30,6 +35,7 @@ export interface PrinterFeatureOptions {
   readonly destinations?: PrinterDestinationPolicyOptions;
   readonly gateway?: OctoPrintGatewayOptions;
   readonly service?: PrinterServiceOptions;
+  readonly webcamGateway?: OctoPrintWebcamGatewayOptions;
 }
 
 export interface PrinterFeature {
@@ -46,6 +52,12 @@ export function registerPrinterFeature(
     new PrinterDestinationPolicy(options.destinations),
     new OctoPrintGateway(options.gateway),
     options.service,
+  );
+  const webcam = new PrinterWebcamService(
+    options.database,
+    options.secrets,
+    new PrinterDestinationPolicy(options.destinations),
+    new OctoPrintWebcamGateway(options.webcamGateway),
   );
   const authenticated = { preHandler: options.identity.requireOwner };
   const ownerId = (request: FastifyRequest) => options.identity.ownerForRequest(request).owner.id;
@@ -65,6 +77,17 @@ export function registerPrinterFeature(
   );
   application.post('/api/v1/printing/printers/:printerId/verify', authenticated, async (request) =>
     call(() => service.verifySaved(ownerId(request), pathId(request))),
+  );
+  application.get(
+    '/api/v1/printing/printers/:printerId/webcam/snapshot',
+    authenticated,
+    async (request, reply) => {
+      const snapshot = await call(() => webcam.snapshot(ownerId(request), pathId(request)));
+      return reply
+        .header('cache-control', 'no-store')
+        .type(snapshot.contentType)
+        .send(Buffer.from(snapshot.bytes));
+    },
   );
   application.delete(
     '/api/v1/printing/printers/:printerId',

@@ -37,3 +37,9 @@ export {
   type PrinterView,
   type UpdatePrinterInput,
 } from './service.js';
+export {
+  OctoPrintWebcamGateway,
+  type OctoPrintWebcamGatewayOptions,
+  type PrinterWebcamSnapshot,
+  PrinterWebcamService,
+} from './webcam.js';

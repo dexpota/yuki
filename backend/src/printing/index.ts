@@ -1,4 +1,5 @@
 export * from './compatibility/index.js';
+export * from './events.js';
 export * from './controls/index.js';
 export * from './gcode/index.js';
 export * from './history/index.js';

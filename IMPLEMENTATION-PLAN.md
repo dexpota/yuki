@@ -40,7 +40,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P05 | Complete | Durable evaluation, owner-scoped queue APIs, atomic per-printer positions/reordering/removal, override policy, restart-safe worker processing, and PostgreSQL concurrency verified |
 | P06 | Complete | Single-use readiness challenges, atomic attempt/command creation, streamed OctoPrint upload and verification, remote start, ambiguous-result reconciliation, and worker/API composition passed PostgreSQL tests |
 | P07 | Complete | Single-use fresh-state confirmations, durable pause/resume/cancel/temperature/home commands, bounded OctoPrint dispatch, ambiguous-result reconciliation, and append-only printer/attempt audits passed PostgreSQL tests |
-| P08 | Ready | F04, F06, P02, and P05 are complete |
+| P08 | Complete | Printer configuration, stale-aware monitoring, compatibility queues, confirmed starts/controls, same-origin webcam proxying, and PostgreSQL-backed SSE invalidation are composed and verified |
 | P09 | Complete | Immutable snapshots and append-only audit revisions, manual/external attempts, terminal reconciliation, outcome corrections, notes, reference-safe photos, model projections, failed-history filtering, and APIs passed PostgreSQL tests |
 | P10 | Complete | Model pages now show print projections and chronological attempts with exact-version manual entry; global printer-filtered history supports outcome corrections, notes, and result-photo upload |
 | N01 | Ready | F05, F07, and P06 are complete |

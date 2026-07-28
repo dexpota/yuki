@@ -68,6 +68,7 @@ import {
   type QueueDatabaseSchema,
   QueueService,
   registerPrinterFeature,
+  registerPrinterEventsFeature,
   registerPrinterControlFeature,
   registerPrinterMonitoringFeature,
   registerPrintHistoryFeature,
@@ -262,6 +263,12 @@ export async function createApiApplication(
     registerPrinterMonitoringFeature(application, {
       identity,
       service: printerMonitoring,
+    });
+    registerPrinterEventsFeature(application, {
+      database: database as unknown as Database<
+        PrinterMonitoringDatabaseSchema & QueueDatabaseSchema
+      >,
+      identity,
     });
     registerPrintStartFeature(application, {
       identity,

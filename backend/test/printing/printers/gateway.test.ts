@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   OctoPrintGateway,
+  OctoPrintWebcamGateway,
   PrinterDestinationPolicy,
   PrinterGatewayError,
   UnsafePrinterDestinationError,
@@ -38,6 +39,70 @@ describe('printer destination policy', () => {
     await expect(policy.validate('https://printer.example.test')).rejects.toThrow(
       'address is not allowed',
     );
+  });
+});
+
+describe('OctoPrint webcam gateway', () => {
+  const destination = { origin: 'http://printer.test:5000', baseUrl: 'http://printer.test:5000/' };
+
+  it('discovers and proxies a same-origin snapshot without exposing its URL or credential', async () => {
+    const request = vi.fn<typeof fetch>(async (input) => {
+      const url = String(input);
+      if (url.endsWith('/api/settings'))
+        return Response.json({ webcam: { snapshotUrl: '/webcam/?action=snapshot' } });
+      return new Response(new Uint8Array([1, 2, 3]), {
+        headers: { 'content-type': 'image/jpeg' },
+      });
+    });
+    const gateway = new OctoPrintWebcamGateway({ fetch: request });
+
+    await expect(gateway.snapshot(destination, 'very-secret')).resolves.toEqual({
+      contentType: 'image/jpeg',
+      bytes: new Uint8Array([1, 2, 3]),
+    });
+    expect(request.mock.calls.map(([url]) => String(url))).toEqual([
+      'http://printer.test:5000/api/settings',
+      'http://printer.test:5000/webcam/?action=snapshot',
+    ]);
+    expect(request.mock.calls[1]?.[1]?.headers).toEqual({ 'X-Api-Key': 'very-secret' });
+  });
+
+  it('rejects a configured snapshot on another origin', async () => {
+    const request = vi.fn<typeof fetch>(async () =>
+      Response.json({ webcam: { snapshotUrl: 'http://camera.internal/snapshot.jpg' } }),
+    );
+    const gateway = new OctoPrintWebcamGateway({ fetch: request });
+
+    await expect(gateway.snapshot(destination, 'secret')).rejects.toMatchObject({
+      reason: 'destination_rejected',
+      retryable: false,
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds snapshot content and accepts only browser-safe image types', async () => {
+    const responses = [
+      Response.json({ webcam: { snapshotUrl: '/snapshot' } }),
+      new Response('not an image', { headers: { 'content-type': 'text/html' } }),
+    ];
+    const malformed = new OctoPrintWebcamGateway({
+      fetch: async () => responses.shift() as Response,
+    });
+    await expect(malformed.snapshot(destination, 'secret')).rejects.toMatchObject({
+      reason: 'malformed_response',
+    });
+
+    const oversizedResponses = [
+      Response.json({ webcam: { snapshotUrl: '/snapshot' } }),
+      new Response('0123456789', { headers: { 'content-type': 'image/png' } }),
+    ];
+    const oversized = new OctoPrintWebcamGateway({
+      maximumSnapshotBytes: 8,
+      fetch: async () => oversizedResponses.shift() as Response,
+    });
+    await expect(oversized.snapshot(destination, 'secret')).rejects.toMatchObject({
+      reason: 'response_too_large',
+    });
   });
 });
 

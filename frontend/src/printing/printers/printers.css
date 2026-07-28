@@ -1,0 +1,367 @@
+.printers-page,
+.printer-detail {
+  display: grid;
+  gap: 2rem;
+}
+
+.printers-heading,
+.printer-detail-heading,
+.panel-heading,
+.queue-entry-heading,
+.printer-form-actions,
+.control-row,
+.temperature-control,
+.confirmation-dialog > div:last-child {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.printers-heading h1,
+.printer-detail-heading h1 {
+  max-width: none;
+}
+
+.printer-grid,
+.queue-list {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.printer-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.printer-card,
+.printer-panel,
+.printer-form,
+.printer-empty {
+  background: #16211c;
+  border: 1px solid #35433b;
+  border-radius: 0.8rem;
+}
+
+.printer-card {
+  display: grid;
+  gap: 0.65rem;
+  min-height: 9rem;
+  padding: 1.4rem;
+  color: #e8eee9;
+  text-decoration: none;
+}
+
+.printer-card:hover {
+  border-color: #76b88e;
+}
+
+.printer-card > div {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 1.2rem;
+}
+
+.printer-card > span,
+.printer-card small {
+  color: #b9c4bc;
+}
+
+.status-dot {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: #8c9890;
+}
+
+.status-online {
+  background: #71d597;
+  box-shadow: 0 0 0.8rem #71d59766;
+}
+
+.status-offline {
+  background: #f3998e;
+}
+
+.printer-empty,
+.printer-form,
+.printer-panel {
+  padding: 1.5rem;
+}
+
+.printer-form {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.printer-form h2,
+.panel-heading h2,
+.printer-controls h3 {
+  margin: 0;
+}
+
+.printer-form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.printer-form-grid > .form-field,
+.queue-add-form label,
+.override-form label,
+.temperature-control label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+select,
+textarea {
+  width: 100%;
+  padding: 0.75rem 0.85rem;
+  color: #e8eee9;
+  background: #16211c;
+  border: 1px solid #415047;
+  border-radius: 0.4rem;
+  font: inherit;
+}
+
+textarea {
+  min-height: 5rem;
+  resize: vertical;
+}
+
+.checkbox-field {
+  display: flex;
+  align-items: center;
+  align-self: end;
+  min-height: 2.8rem;
+}
+
+.checkbox-field input {
+  width: auto;
+}
+
+.printer-form-actions {
+  justify-content: flex-start;
+}
+
+.danger-button {
+  color: #ffd8d4;
+  background: #542622;
+}
+
+.success-notice {
+  color: #9ee2b7;
+}
+
+.monitor-layout {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 1.5rem;
+}
+
+.monitor-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.monitor-stats div {
+  padding: 0.8rem;
+  background: #101714;
+  border-radius: 0.5rem;
+}
+
+.monitor-stats dt {
+  color: #9da9a1;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.monitor-stats dd {
+  margin: 0.35rem 0 0;
+  overflow-wrap: anywhere;
+}
+
+.monitoring-panel progress {
+  width: 100%;
+  height: 0.75rem;
+  margin: 0.5rem 0;
+  accent-color: #9ee2b7;
+}
+
+.temperature-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 1rem 0;
+}
+
+.temperature-list span,
+.freshness,
+.queue-state,
+.compatibility {
+  padding: 0.3rem 0.55rem;
+  border-radius: 999px;
+  background: #2a3730;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: capitalize;
+}
+
+.freshness-fresh,
+.compatibility-compatible {
+  color: #b9f3cd;
+  background: #1d4930;
+}
+
+.freshness-stale,
+.compatibility-warning,
+.compatibility-unknown {
+  color: #ffe7ad;
+  background: #4a3b15;
+}
+
+.compatibility-incompatible {
+  color: #ffd8d4;
+  background: #542622;
+}
+
+.stale-warning,
+.printer-notice,
+.queue-error {
+  padding: 0.75rem;
+  border-radius: 0.4rem;
+}
+
+.stale-warning {
+  color: #ffe7ad;
+  background: #4a3b15;
+}
+
+.queue-error {
+  color: #ffd8d4;
+  background: #542622;
+}
+
+.webcam-frame {
+  display: grid;
+  align-content: start;
+  gap: 0.75rem;
+  overflow: hidden;
+  padding: 0.8rem;
+  background: #101714;
+  border-radius: 0.6rem;
+}
+
+.webcam-frame img {
+  width: 100%;
+  min-height: 12rem;
+  max-height: 24rem;
+  object-fit: contain;
+  background: #080c0a;
+}
+
+.webcam-frame button {
+  justify-self: start;
+}
+
+.printer-controls {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #35433b;
+}
+
+.control-row {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+}
+
+.temperature-control {
+  justify-content: flex-start;
+}
+
+.temperature-control label {
+  max-width: 8rem;
+}
+
+.queue-add-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  align-items: end;
+  gap: 1rem;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: #101714;
+  border-radius: 0.6rem;
+}
+
+.queue-list > li {
+  padding: 1rem;
+  background: #101714;
+  border: 1px solid #2b3731;
+  border-radius: 0.6rem;
+}
+
+.queue-entry-heading > div {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.queue-entry-actions button {
+  padding: 0.45rem 0.65rem;
+}
+
+.compatibility-checks {
+  margin-top: 0.8rem;
+}
+
+.compatibility-checks li {
+  margin: 0.35rem 0;
+  color: #b9c4bc;
+}
+
+.override-form {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: end;
+  gap: 0.7rem;
+  margin-top: 1rem;
+}
+
+.confirmation-backdrop {
+  position: fixed;
+  z-index: 10;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: #080c0acc;
+}
+
+.confirmation-dialog {
+  width: min(32rem, 100%);
+  padding: 2rem;
+  background: #16211c;
+  border: 1px solid #76b88e;
+  border-radius: 0.8rem;
+  box-shadow: 0 2rem 5rem #0008;
+}
+
+.confirmation-dialog h2 {
+  margin: 0.4rem 0 1rem;
+  font-size: 1.8rem;
+}
+
+.confirmation-dialog > div:last-child {
+  justify-content: flex-start;
+  margin-top: 1.5rem;
+}
