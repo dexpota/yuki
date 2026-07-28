@@ -53,12 +53,16 @@ import {
 } from './platform/processor/supervisor/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 import {
+  OctoPrintCommandGateway,
   OctoPrintMonitoringGateway,
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
   PrinterPollScheduler,
+  PrintStartCommandService,
+  type PrintStartDatabaseSchema,
   processNextPrinterPollJob,
+  processNextPrintStartJob,
   processNextQueueEvaluationJob,
   type QueueDatabaseSchema,
   QueueService,
@@ -72,7 +76,8 @@ export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   CataloguePortabilityDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
   PreviewDatabaseSchema &
-  QueueDatabaseSchema;
+  QueueDatabaseSchema &
+  PrintStartDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
@@ -137,11 +142,22 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
           const previewGenerator = new SupervisorPreviewGenerator(processorClient);
           const queue = new QueueService(database as unknown as Database<QueueDatabaseSchema>);
           const gcodeFacts = new SupervisorGcodeFactsProvider(processorClient);
+          const printerSecrets = new SecretVault(configuration.masterKey);
+          const printerDestinations = new PrinterDestinationPolicy();
+          const monitoringGateway = new OctoPrintMonitoringGateway();
           const monitoring = new PrinterMonitoringService(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
-            new SecretVault(configuration.masterKey),
-            new PrinterDestinationPolicy(),
-            new OctoPrintMonitoringGateway(),
+            printerSecrets,
+            printerDestinations,
+            monitoringGateway,
+          );
+          const printStartCommands = new PrintStartCommandService(
+            database as unknown as Database<PrintStartDatabaseSchema>,
+            blobStore,
+            printerSecrets,
+            printerDestinations,
+            new OctoPrintCommandGateway(),
+            monitoringGateway,
           );
           const printerPolls = new PrinterPollScheduler(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
@@ -169,6 +185,7 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               blobStore,
               monitoring,
               printerPolls,
+              printStartCommands,
               configuration.localImport,
               cancellation.signal,
               logger,
@@ -266,6 +283,7 @@ async function runLocalImportWorkerLoop(
   blobStore: BlobStore,
   monitoring: PrinterMonitoringService,
   printerPolls: PrinterPollScheduler,
+  printStartCommands: PrintStartCommandService,
   configuration: LocalImportConfiguration,
   signal: AbortSignal,
   logger: Logger,
@@ -310,12 +328,18 @@ async function runLocalImportWorkerLoop(
         monitoring,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
+      const printStartProcessed = await processNextPrintStartJob(
+        database as unknown as Database<PrintStartDatabaseSchema>,
+        printStartCommands,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
       processed =
         localImportProcessed ||
         portabilityProcessed ||
         previewProcessed ||
         queueProcessed ||
-        printerPollProcessed;
+        printerPollProcessed ||
+        printStartProcessed;
     } catch (error) {
       logger.error('local_import_worker_iteration_failed', { error });
     }

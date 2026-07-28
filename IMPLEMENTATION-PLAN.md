@@ -38,8 +38,11 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P03 | Complete | Bounded parser, backend fact validation, and the read-only restricted-supervisor operation are composed with conservative unknown results for unsafe inference |
 | P04 | Complete | Rule set 1.0.0, immutable owner-scoped input/result snapshots, hard conflicts, overridable warnings/unknowns, and PostgreSQL persistence verified |
 | P05 | Complete | Durable evaluation, owner-scoped queue APIs, atomic per-printer positions/reordering/removal, override policy, restart-safe worker processing, and PostgreSQL concurrency verified |
-| P06 | Ready | I01, P02, and P05 are complete |
+| P06 | Complete | Single-use readiness challenges, atomic attempt/command creation, streamed OctoPrint upload and verification, remote start, ambiguous-result reconciliation, and worker/API composition passed PostgreSQL tests |
+| P07 | Ready | P06 is complete |
 | P08 | Ready | F04, F06, P02, and P05 are complete |
+| P09 | Ready | F06, F08, C02, and P06 are complete |
+| N01 | Ready | F05, F07, and P06 are complete |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 

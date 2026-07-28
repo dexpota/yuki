@@ -2,7 +2,20 @@ import type { ColumnType } from 'kysely';
 import type { JobDatabaseSchema } from '../../platform/jobs/index.js';
 import type { CompatibilityDatabaseSchema, CompatibilityStatus } from '../compatibility/index.js';
 
-export type QueueEntryState = 'evaluating' | 'blocked' | 'queued' | 'failed' | 'removed';
+export type QueueEntryState =
+  | 'evaluating'
+  | 'blocked'
+  | 'queued'
+  | 'uploading'
+  | 'uploaded'
+  | 'starting'
+  | 'printing'
+  | 'paused'
+  | 'completed'
+  | 'cancelled'
+  | 'reconciliation_required'
+  | 'failed'
+  | 'removed';
 
 export interface QueueEntryTable {
   readonly id: string;
@@ -19,6 +32,13 @@ export interface QueueEntryTable {
   readonly error_code: string | null;
   readonly error_message: string | null;
   readonly idempotency_key: string | null;
+  readonly start_command_job_id: ColumnType<
+    string | null,
+    string | null | undefined,
+    string | null
+  >;
+  readonly print_attempt_id: ColumnType<string | null, string | null | undefined, string | null>;
+  readonly upstream_path: ColumnType<string | null, string | null | undefined, string | null>;
   readonly created_at: ColumnType<Date, Date | string, never>;
   readonly updated_at: ColumnType<Date, Date | string, Date | string>;
   readonly version: number;
@@ -38,6 +58,8 @@ export interface QueueEntryView {
   readonly compatibilityStatus: CompatibilityStatus | null;
   readonly compatibilitySnapshot: unknown | null;
   readonly overrideJustification: string | null;
+  readonly printAttemptId: string | null;
+  readonly upstreamPath: string | null;
   readonly error: { readonly code: string; readonly message: string } | null;
   readonly createdAt: Date;
   readonly updatedAt: Date;

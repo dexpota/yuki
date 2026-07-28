@@ -128,6 +128,8 @@ function response(entry: QueueEntryView) {
     compatibilityStatus: entry.compatibilityStatus,
     compatibilitySnapshot: entry.compatibilitySnapshot,
     overrideJustification: entry.overrideJustification,
+    printAttemptId: entry.printAttemptId,
+    upstreamPath: entry.upstreamPath,
     error: entry.error,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),

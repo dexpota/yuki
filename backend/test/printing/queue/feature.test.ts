@@ -92,6 +92,8 @@ function entry(): QueueEntryView {
     compatibilityStatus: null,
     compatibilitySnapshot: null,
     overrideJustification: null,
+    printAttemptId: null,
+    upstreamPath: null,
     error: null,
     createdAt: now,
     updatedAt: now,

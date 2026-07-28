@@ -58,10 +58,13 @@ import {
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
+  type PrintStartDatabaseSchema,
+  PrintStartService,
   type QueueDatabaseSchema,
   QueueService,
   registerPrinterFeature,
   registerPrinterMonitoringFeature,
+  registerPrintStartFeature,
   registerQueueFeature,
 } from './printing/index.js';
 import { registerSettingsFeature, type SettingsDatabaseSchema } from './settings/index.js';
@@ -81,6 +84,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   PreviewDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
   QueueDatabaseSchema &
+  PrintStartDatabaseSchema &
   SettingsDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
@@ -231,13 +235,21 @@ export async function createApiApplication(
       identity,
       service: new QueueService(database as unknown as Database<QueueDatabaseSchema>),
     });
+    const printerMonitoring = new PrinterMonitoringService(
+      database as unknown as Database<PrinterMonitoringDatabaseSchema>,
+      identity.secrets,
+      new PrinterDestinationPolicy(),
+      new OctoPrintMonitoringGateway(),
+    );
     registerPrinterMonitoringFeature(application, {
       identity,
-      service: new PrinterMonitoringService(
-        database as unknown as Database<PrinterMonitoringDatabaseSchema>,
-        identity.secrets,
-        new PrinterDestinationPolicy(),
-        new OctoPrintMonitoringGateway(),
+      service: printerMonitoring,
+    });
+    registerPrintStartFeature(application, {
+      identity,
+      service: new PrintStartService(
+        database as unknown as Database<PrintStartDatabaseSchema>,
+        printerMonitoring,
       ),
     });
     installHttpObservability(application, {

@@ -394,6 +394,8 @@ function view(row: Selectable<QueueEntryTable>): QueueEntryView {
     compatibilityStatus: row.compatibility_status,
     compatibilitySnapshot: row.compatibility_snapshot,
     overrideJustification: row.override_justification,
+    printAttemptId: row.print_attempt_id ?? null,
+    upstreamPath: row.upstream_path ?? null,
     error:
       row.error_code && row.error_message
         ? { code: row.error_code, message: row.error_message }
