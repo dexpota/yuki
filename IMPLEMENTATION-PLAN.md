@@ -39,7 +39,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P04 | Complete | Rule set 1.0.0, immutable owner-scoped input/result snapshots, hard conflicts, overridable warnings/unknowns, and PostgreSQL persistence verified |
 | P05 | Complete | Durable evaluation, owner-scoped queue APIs, atomic per-printer positions/reordering/removal, override policy, restart-safe worker processing, and PostgreSQL concurrency verified |
 | P06 | Complete | Single-use readiness challenges, atomic attempt/command creation, streamed OctoPrint upload and verification, remote start, ambiguous-result reconciliation, and worker/API composition passed PostgreSQL tests |
-| P07 | Ready | P06 is complete |
+| P07 | Complete | Single-use fresh-state confirmations, durable pause/resume/cancel/temperature/home commands, bounded OctoPrint dispatch, ambiguous-result reconciliation, and append-only printer/attempt audits passed PostgreSQL tests |
 | P08 | Ready | F04, F06, P02, and P05 are complete |
 | P09 | Complete | Immutable snapshots and append-only audit revisions, manual/external attempts, terminal reconciliation, outcome corrections, notes, reference-safe photos, model projections, failed-history filtering, and APIs passed PostgreSQL tests |
 | P10 | Ready | F04 and P09 are complete |

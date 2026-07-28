@@ -53,9 +53,12 @@ import {
 } from './platform/processor/supervisor/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 import {
+  OctoPrintControlGateway,
   OctoPrintCommandGateway,
   OctoPrintMonitoringGateway,
   PrinterDestinationPolicy,
+  PrinterControlCommandService,
+  type PrinterControlDatabaseSchema,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
   PrinterPollScheduler,
@@ -64,6 +67,7 @@ import {
   PrintStartCommandService,
   type PrintStartDatabaseSchema,
   processNextPrinterPollJob,
+  processNextPrinterControlJob,
   processNextPrintStartJob,
   processNextQueueEvaluationJob,
   type QueueDatabaseSchema,
@@ -80,6 +84,7 @@ export type WorkerDatabaseSchema = IdentityDatabaseSchema &
   PrintHistoryDatabaseSchema &
   PreviewDatabaseSchema &
   QueueDatabaseSchema &
+  PrinterControlDatabaseSchema &
   PrintStartDatabaseSchema;
 
 export interface WorkerCompositionConfiguration extends WorkerConfiguration {
@@ -167,6 +172,13 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
             new OctoPrintCommandGateway(),
             monitoringGateway,
           );
+          const printerControlCommands = new PrinterControlCommandService(
+            database as unknown as Database<PrinterControlDatabaseSchema>,
+            printerSecrets,
+            printerDestinations,
+            new OctoPrintControlGateway(),
+            monitoringGateway,
+          );
           const printerPolls = new PrinterPollScheduler(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
           );
@@ -194,6 +206,7 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               monitoring,
               printerPolls,
               printStartCommands,
+              printerControlCommands,
               configuration.localImport,
               cancellation.signal,
               logger,
@@ -292,6 +305,7 @@ async function runLocalImportWorkerLoop(
   monitoring: PrinterMonitoringService,
   printerPolls: PrinterPollScheduler,
   printStartCommands: PrintStartCommandService,
+  printerControlCommands: PrinterControlCommandService,
   configuration: LocalImportConfiguration,
   signal: AbortSignal,
   logger: Logger,
@@ -341,13 +355,19 @@ async function runLocalImportWorkerLoop(
         printStartCommands,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
+      const printerControlProcessed = await processNextPrinterControlJob(
+        database as unknown as Database<PrinterControlDatabaseSchema>,
+        printerControlCommands,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
       processed =
         localImportProcessed ||
         portabilityProcessed ||
         previewProcessed ||
         queueProcessed ||
         printerPollProcessed ||
-        printStartProcessed;
+        printStartProcessed ||
+        printerControlProcessed;
     } catch (error) {
       logger.error('local_import_worker_iteration_failed', { error });
     }

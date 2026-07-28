@@ -53,6 +53,8 @@ import {
 } from './platform/observability/index.js';
 import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
 import {
+  type PrinterControlDatabaseSchema,
+  PrinterControlService,
   OctoPrintMonitoringGateway,
   type PrinterDatabaseSchema,
   PrinterDestinationPolicy,
@@ -65,6 +67,7 @@ import {
   type QueueDatabaseSchema,
   QueueService,
   registerPrinterFeature,
+  registerPrinterControlFeature,
   registerPrinterMonitoringFeature,
   registerPrintHistoryFeature,
   registerPrintStartFeature,
@@ -88,6 +91,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
   PrintHistoryDatabaseSchema &
   QueueDatabaseSchema &
+  PrinterControlDatabaseSchema &
   PrintStartDatabaseSchema &
   SettingsDatabaseSchema;
 
@@ -258,6 +262,13 @@ export async function createApiApplication(
       identity,
       service: new PrintStartService(
         database as unknown as Database<PrintStartDatabaseSchema>,
+        printerMonitoring,
+      ),
+    });
+    registerPrinterControlFeature(application, {
+      identity,
+      service: new PrinterControlService(
+        database as unknown as Database<PrinterControlDatabaseSchema>,
         printerMonitoring,
       ),
     });
