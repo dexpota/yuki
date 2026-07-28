@@ -15,7 +15,7 @@ export async function generatePreviewFiles(
   if (!metadata.isFile()) throw new PreviewLimitError('Preview input is not a regular file.');
   if (metadata.size > limits.maximumInputBytes)
     throw new PreviewLimitError('Preview input exceeds the configured byte limit.');
-  const result = generatePreview(await readFile(inputPath), format, limits);
+  const result = await generatePreview(await readFile(inputPath), format, limits);
   if (result.status !== 'ready') return result;
   await mkdir(outputDirectory, { recursive: true });
   const descriptors: GeneratedPreviewDescriptor[] = [];

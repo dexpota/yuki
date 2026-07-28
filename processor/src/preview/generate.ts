@@ -1,3 +1,6 @@
+import occtImport from 'occt-import-js';
+
+import { readThreeMfMesh } from './three-mf.js';
 import type { PreviewDimensions, PreviewLimits, PreviewResult } from './types.js';
 import { PreviewLimitError } from './types.js';
 
@@ -9,21 +12,38 @@ export const DEFAULT_PREVIEW_LIMITS: PreviewLimits = {
   maximumSegments: 1_000_000,
 };
 
-export function generatePreview(
+export interface StepImportResult {
+  readonly success?: unknown;
+  readonly meshes?: unknown;
+}
+
+export interface PreviewConverterDependencies {
+  readonly readStep?: (input: Uint8Array) => Promise<StepImportResult>;
+}
+
+let openCascade: ReturnType<typeof occtImport> | undefined;
+
+export async function generatePreview(
   input: Uint8Array,
   format: 'stl' | '3mf' | 'obj' | 'step' | 'gcode',
   limits: PreviewLimits = DEFAULT_PREVIEW_LIMITS,
-): PreviewResult {
+  dependencies: PreviewConverterDependencies = {},
+): Promise<PreviewResult> {
   validateLimits(limits);
   if (input.byteLength > limits.maximumInputBytes)
     throw new PreviewLimitError('Preview input exceeds the configured byte limit.');
   try {
     if (format === 'stl') return geometryPreview(parseStl(input, limits), limits);
+    if (format === 'obj') return geometryPreview(parseObj(input, limits), limits);
+    if (format === '3mf')
+      return geometryPreview(meshWithBounds(await readThreeMfMesh(input, limits)), limits);
+    if (format === 'step')
+      return geometryPreview(
+        parseStep(await (dependencies.readStep ?? readStepWithOpenCascade)(input), limits),
+        limits,
+      );
     if (format === 'gcode') return gcodePreview(input, limits);
-    return {
-      status: 'unsupported',
-      reason: `${format.toUpperCase()} preview conversion is not installed in this processor image.`,
-    };
+    return { status: 'unsupported', reason: 'This asset format is not previewable.' };
   } catch (error) {
     if (error instanceof PreviewLimitError) throw error;
     return { status: 'failed', reason: 'The file is malformed or could not be previewed safely.' };
@@ -34,6 +54,115 @@ interface Mesh {
   readonly positions: Float32Array;
   readonly minimum: [number, number, number];
   readonly maximum: [number, number, number];
+}
+
+function parseObj(input: Uint8Array, limits: PreviewLimits): Mesh {
+  const text = new TextDecoder('utf-8', { fatal: true }).decode(input);
+  const vertices: Array<readonly [number, number, number]> = [];
+  const triangles: number[] = [];
+  for (const rawLine of text.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const fields = line.split(/\s+/);
+    if (fields[0] === 'v') {
+      if (fields.length < 4) throw new Error('invalid OBJ vertex');
+      if (vertices.length >= limits.maximumTriangles * 3)
+        throw new PreviewLimitError('OBJ vertex limit exceeded.');
+      const point = fields.slice(1, 4).map(Number);
+      if (point.some((value) => !Number.isFinite(value))) throw new Error('invalid OBJ vertex');
+      vertices.push(point as [number, number, number]);
+      continue;
+    }
+    if (fields[0] !== 'f') continue;
+    if (fields.length < 4) throw new Error('invalid OBJ face');
+    const face = fields.slice(1).map((field) => objVertexIndex(field, vertices.length));
+    for (let index = 1; index < face.length - 1; index += 1) {
+      if (triangles.length / 3 >= limits.maximumTriangles)
+        throw new PreviewLimitError('OBJ triangle limit exceeded.');
+      triangles.push(face[0] as number, face[index] as number, face[index + 1] as number);
+    }
+  }
+  if (vertices.length === 0 || triangles.length === 0) throw new Error('empty OBJ');
+  const positions = new Float32Array(triangles.length * 3);
+  let output = 0;
+  for (const index of triangles) {
+    const vertex = vertices[index];
+    if (!vertex) throw new Error('invalid OBJ index');
+    positions[output++] = vertex[0];
+    positions[output++] = vertex[1];
+    positions[output++] = vertex[2];
+  }
+  return meshWithBounds(positions);
+}
+
+function objVertexIndex(value: string, vertexCount: number): number {
+  const raw = value.split('/', 1)[0];
+  if (!raw || !/^-?[1-9]\d*$/.test(raw)) throw new Error('invalid OBJ index');
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed)) throw new Error('invalid OBJ index');
+  const index = parsed > 0 ? parsed - 1 : vertexCount + parsed;
+  if (index < 0 || index >= vertexCount) throw new Error('invalid OBJ index');
+  return index;
+}
+
+async function readStepWithOpenCascade(input: Uint8Array): Promise<StepImportResult> {
+  openCascade ??= occtImport();
+  const converter = await openCascade;
+  return converter.ReadStepFile(input, {
+    linearUnit: 'millimeter',
+    linearDeflectionType: 'bounding_box_ratio',
+    linearDeflection: 0.001,
+    angularDeflection: 0.5,
+  });
+}
+
+function parseStep(value: StepImportResult, limits: PreviewLimits): Mesh {
+  if (value.success !== true || !Array.isArray(value.meshes)) throw new Error('STEP import failed');
+  const output: number[] = [];
+  let triangleCount = 0;
+  for (const meshValue of value.meshes) {
+    const mesh = record(meshValue);
+    const attributes = record(mesh.attributes);
+    const position = record(attributes.position);
+    const positions = numericArray(position.array);
+    const index = record(mesh.index);
+    const indices = numericArray(index.array);
+    if (positions.length % 3 !== 0 || indices.length % 3 !== 0)
+      throw new Error('invalid STEP mesh');
+    if (positions.length / 3 > limits.maximumTriangles * 3)
+      throw new PreviewLimitError('STEP vertex limit exceeded.');
+    triangleCount += indices.length / 3;
+    if (triangleCount > limits.maximumTriangles)
+      throw new PreviewLimitError('STEP triangle limit exceeded.');
+    for (const vertexIndex of indices) {
+      if (!Number.isSafeInteger(vertexIndex) || vertexIndex < 0)
+        throw new Error('invalid STEP index');
+      const offset = vertexIndex * 3;
+      const x = positions[offset];
+      const y = positions[offset + 1];
+      const z = positions[offset + 2];
+      if (x === undefined || y === undefined || z === undefined)
+        throw new Error('invalid STEP index');
+      output.push(x, y, z);
+    }
+  }
+  if (output.length === 0) throw new Error('empty STEP');
+  return meshWithBounds(Float32Array.from(output));
+}
+
+function numericArray(value: unknown): readonly number[] {
+  if (
+    !Array.isArray(value) ||
+    value.some((item) => typeof item !== 'number' || !Number.isFinite(item))
+  )
+    throw new Error('invalid numeric array');
+  return value;
+}
+
+function record(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw new Error('invalid object');
+  return value as Record<string, unknown>;
 }
 
 function parseStl(input: Uint8Array, limits: PreviewLimits): Mesh {

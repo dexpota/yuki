@@ -12,5 +12,10 @@ FROM node:24.18.0-alpine3.23
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build --chown=65532:65532 /runtime ./
+COPY --from=build --chown=65532:65532 \
+  /runtime/node_modules/occt-import-js/dist/license.occt-import-js.txt \
+  /runtime/node_modules/occt-import-js/dist/license.occt.txt \
+  /licenses/
+COPY --chown=65532:65532 docs/ADR-0005-step-preview-conversion.md /licenses/SOURCE.md
 USER 65532:65532
 ENTRYPOINT ["node", "/app/dist/main.js"]

@@ -25,8 +25,8 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | C02 | Complete | Authenticated catalogue workflows and runnable API composition verified |
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
 | C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
-| C05 | In progress | Secure generation, worker dispatch, owner-scoped request/status/download APIs, and model-detail geometry/G-code rendering are composed; OBJ/3MF/STEP conversion and the required STEP approach decision remain |
-| C06 | Blocked | Core manifest, ZIP, durable jobs, API, and current-schema round trip complete; P09 history is ready for portability, while final generated-artifact fields still require C05 |
+| C05 | Complete | Bounded STL/OBJ/3MF/STEP-to-GLB and G-code layer conversion, dimensions, thumbnails, restricted worker dispatch, APIs, and interactive rendering are composed; real Open Cascade STEP conversion passed in the production processor image |
+| C06 | Ready | C05 and P09 are complete; the existing portability implementation can now be reconciled with final generated-artifact and print-history fields |
 | C07 | Ready | Prerequisites C02 and M07 are complete |
 | M01 | Complete | Streaming upload, durable import sessions, atomic publication, and worker composition verified |
 | M02 | Complete | Restricted processor ZIP extraction rejects traversal, links, bombs, collisions, encryption, and configured limits |
@@ -46,6 +46,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | N01 | Ready | F05, F07, and P06 are complete |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
+| O02 | Ready | C05 and P07 complete the remaining security-hardening prerequisites |
 | O04 | Ready | C03, C04, and P09 are complete |
 
 All tasks not listed above remain blocked by the DAG.

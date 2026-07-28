@@ -371,7 +371,7 @@ These decisions do not change the product direction, but they should be resolved
 1. The external notification channel for the MVP, such as email, Telegram, or a generic webhook.
 2. The exact S3-compatible provider used for integration testing.
 3. The maximum default upload and ZIP extraction sizes.
-4. The supported STEP-to-preview conversion approach and its deployment/licensing constraints.
+4. ~~The supported STEP-to-preview conversion approach and its deployment/licensing constraints.~~ Resolved by ADR-0005.
 5. The precise G-code metadata rules that qualify as a hard incompatibility versus an overridable warning.
 6. The authentication behavior for trusted local-network installations.
 7. Whether deletion immediately removes stored files or uses a recoverable retention period.

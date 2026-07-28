@@ -159,7 +159,10 @@ The processor presents a versioned command contract to the worker. Initial forma
 - G-code: bounded parsing of recognized commands and metadata, emitting compatibility facts and a layer preview;
 - images: validate, strip unsafe metadata as appropriate, and generate bounded thumbnails.
 
-Specific tools must be selected after a license and malformed-file evaluation. Conversion images are pinned by digest so a deployment upgrade cannot silently change generated output.
+STEP tessellation uses the pinned `occt-import-js` Open CASCADE WebAssembly
+adapter described in ADR-0005. Its LGPL notices and corresponding-source
+instructions ship with the processor image. Conversion images are pinned by
+digest so a deployment upgrade cannot silently change generated output.
 
 ### 4.5 OctoPrint integration
 
