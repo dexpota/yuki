@@ -8,6 +8,10 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import {
+  CatalogueAssetDownloads,
+  type CatalogueDatabaseSchema,
+} from '../../src/catalogue/index.js';
+import {
   handleLocalImportJob,
   type ImportDatabaseSchema,
   LocalImportPipeline,
@@ -46,6 +50,7 @@ integration('durable local file imports', () => {
     await applyMigration(database, '0004_catalogue.up.sql');
     await applyMigration(database, '0005_import_sessions.up.sql');
     await applyMigration(database, '0009_import_processing.up.sql');
+    await applyMigration(database, '0018_catalogue_version_imports.up.sql');
 
     storageRoot = join(tmpdir(), `yuki-m01-${process.pid}-${Date.now()}`);
     blobStore = await LocalBlobStore.create(storageRoot);
@@ -139,6 +144,111 @@ integration('durable local file imports', () => {
         .where('idempotency_key', '=', 'cube-upload')
         .execute(),
     ).resolves.toHaveLength(1);
+  });
+
+  it('publishes a processed upload as a new immutable version and streams its original', async () => {
+    const sourceModel = await database
+      .selectFrom('catalogue_models')
+      .select(['id', 'current_version_id'])
+      .where('name', '=', 'Calibration cube')
+      .executeTakeFirstOrThrow();
+    const originalVersionId = sourceModel.current_version_id;
+    const bytes = Buffer.from('solid revised\nfacet normal 0 0 1\nendsolid revised\n');
+    const service = new LocalImportService(database, blobStore, { maximumUploadBytes: 4096 });
+    const queued = await service.receive({
+      ownerId,
+      targetModelId: sourceModel.id,
+      versionLabel: 'v2',
+      changeNote: 'Stronger base',
+      originalFilename: 'cube-v2.stl',
+      claimedMimeType: 'model/stl',
+      source: Readable.from([bytes]),
+    });
+    expect(queued).toMatchObject({
+      purpose: 'new_version',
+      targetModelId: sourceModel.id,
+      versionLabel: 'v2',
+      modelId: null,
+    });
+    const pipeline = new LocalImportPipeline(database, blobStore, {
+      inspect: async () => ({
+        kind: 'file',
+        originalDetection: detection('stl', 'model/stl'),
+        files: [],
+      }),
+    });
+    const job = required(
+      await claimJob(database, {
+        workerId: 'version-worker',
+        leaseDurationMs: 10_000,
+        types: [localImportJobType],
+      }),
+      'Expected version import job',
+    );
+    await handleLocalImportJob(database, service, job, { pipeline });
+
+    const completed = await service.get(ownerId, queued.id);
+    expect(completed).toMatchObject({
+      state: 'succeeded',
+      modelId: sourceModel.id,
+      targetModelId: sourceModel.id,
+    });
+    const versions = await database
+      .selectFrom('catalogue_model_versions')
+      .select(['id', 'label', 'change_note', 'published_at'])
+      .where('model_id', '=', sourceModel.id)
+      .orderBy('created_at')
+      .execute();
+    expect(versions).toHaveLength(2);
+    expect(versions[0]).toMatchObject({ id: originalVersionId, label: 'v1' });
+    expect(versions[1]).toMatchObject({
+      label: 'v2',
+      change_note: 'Stronger base',
+      published_at: expect.any(Date),
+    });
+    const current = await database
+      .selectFrom('catalogue_models')
+      .select('current_version_id')
+      .where('id', '=', sourceModel.id)
+      .executeTakeFirstOrThrow();
+    expect(current.current_version_id).toBe(versions[1]?.id);
+    const assets = await database
+      .selectFrom('catalogue_assets')
+      .select(['id', 'model_version_id', 'checksum'])
+      .where('model_id', '=', sourceModel.id)
+      .orderBy('imported_at')
+      .execute();
+    expect(assets).toHaveLength(2);
+    expect(assets[0]?.model_version_id).toBe(originalVersionId);
+    expect(assets[1]?.model_version_id).toBe(versions[1]?.id);
+
+    const downloads = new CatalogueAssetDownloads(
+      database as unknown as Database<CatalogueDatabaseSchema>,
+      blobStore,
+    );
+    const download = await downloads.open(
+      ownerId,
+      required(assets[1]?.id, 'Expected new-version asset'),
+      { start: 6, end: 12 },
+    );
+    expect(download).toMatchObject({
+      filename: 'cube-v2.stl',
+      mimeType: 'model/stl',
+      byteSize: bytes.length,
+      range: { start: 6, end: 12 },
+    });
+    expect((await readStream(download.stream)).toString()).toBe('revised');
+    await expect(
+      downloads.open(
+        '10000000-0000-4000-8000-000000000099',
+        required(assets[1]?.id, 'Expected new-version asset'),
+      ),
+    ).rejects.toThrow('does not exist');
+    await expect(
+      downloads.open(ownerId, required(assets[1]?.id, 'Expected new-version asset'), {
+        start: bytes.length,
+      }),
+    ).rejects.toMatchObject({ byteSize: bytes.length });
   });
 
   it('records a bounded failure and leaves no quarantine file', async () => {

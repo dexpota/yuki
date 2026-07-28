@@ -12,6 +12,14 @@ export interface ImportSessionTable {
   readonly original_filename: string;
   readonly claimed_mime_type: string;
   readonly model_name: string;
+  readonly purpose: ColumnType<
+    'new_model' | 'new_version',
+    'new_model' | 'new_version' | undefined,
+    never
+  >;
+  readonly target_model_id: string | null;
+  readonly version_label: string | null;
+  readonly change_note: string | null;
   readonly idempotency_key: string | null;
   readonly uploaded_bytes: ColumnType<string | number, number, number>;
   readonly checksum: string | null;

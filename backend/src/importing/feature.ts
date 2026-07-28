@@ -72,6 +72,39 @@ export function registerLocalImportFeature(
     },
   );
 
+  application.post(
+    '/api/v1/catalogue/models/:modelId/versions/import',
+    { preHandler: options.identity.requireOwner },
+    async (request, reply) => {
+      const owner = options.identity.ownerForRequest(request).owner;
+      const body = request.body;
+      if (!isAsyncIterable(body))
+        throw new HttpError(400, 'upload_body_required', 'A binary upload body is required');
+      try {
+        const idempotencyKey = optionalHeader(request, 'idempotency-key');
+        const session = await options.service.receive({
+          ownerId: owner.id,
+          targetModelId: pathModelId(request),
+          versionLabel: uploadMetadataHeader(request, 'x-yuki-version-label'),
+          changeNote: optionalUploadMetadataHeader(request, 'x-yuki-change-note') ?? null,
+          originalFilename: uploadMetadataHeader(request, 'x-yuki-filename'),
+          claimedMimeType: contentType(request),
+          ...(idempotencyKey ? { idempotencyKey } : {}),
+          source: body,
+        });
+        reply.status(202);
+        return response(session, optionalContentLength(request));
+      } catch (error) {
+        if (hasCause(error, UploadLimitExceededError))
+          throw new HttpError(413, 'upload_too_large', 'Upload exceeds the configured byte limit');
+        if (error instanceof ImportSessionNotFoundError)
+          throw new HttpError(404, 'catalogue_not_found', 'Target model does not exist');
+        if (error instanceof TypeError) throw new HttpError(400, 'upload_invalid', error.message);
+        throw error;
+      }
+    },
+  );
+
   application.get(
     '/api/v1/imports/:sessionId',
     { preHandler: options.identity.requireOwner },
@@ -141,6 +174,17 @@ function optionalHeader(request: FastifyRequest, name: string): string | undefin
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function optionalUploadMetadataHeader(request: FastifyRequest, name: string): string | undefined {
+  const value = optionalHeader(request, name);
+  if (value === undefined) return undefined;
+  if (optionalHeader(request, 'x-yuki-value-encoding') !== 'percent') return value;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw new HttpError(400, 'upload_header_invalid', `${name} header is invalid`);
+  }
+}
+
 function contentType(request: FastifyRequest): string {
   const claimed = optionalHeader(request, 'x-yuki-claimed-mime-type');
   if (claimed) return claimed.slice(0, 255);
@@ -165,6 +209,13 @@ function pathSessionId(request: FastifyRequest): string {
   return parameters.sessionId;
 }
 
+function pathModelId(request: FastifyRequest): string {
+  const value = (request.params as { modelId?: unknown }).modelId;
+  if (typeof value !== 'string' || !/^[a-f0-9-]{36}$/i.test(value))
+    throw new HttpError(400, 'catalogue_id_invalid', 'Model ID is invalid');
+  return value;
+}
+
 function isAsyncIterable(value: unknown): value is AsyncIterable<Uint8Array> {
   return typeof value === 'object' && value !== null && Symbol.asyncIterator in value;
 }
@@ -179,6 +230,10 @@ function response(
     state: session.state,
     originalFilename: session.originalFilename,
     modelName: session.modelName,
+    purpose: session.purpose,
+    targetModelId: session.targetModelId,
+    versionLabel: session.versionLabel,
+    changeNote: session.changeNote,
     uploadedBytes: session.uploadedBytes,
     ...(declaredLength !== undefined ? { declaredLength } : {}),
     checksum: session.checksum,

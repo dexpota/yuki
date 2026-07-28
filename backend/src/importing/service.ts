@@ -20,7 +20,10 @@ export interface LocalUploadInput {
   readonly ownerId: string;
   readonly originalFilename: string;
   readonly claimedMimeType: string;
-  readonly modelName: string;
+  readonly modelName?: string;
+  readonly targetModelId?: string;
+  readonly versionLabel?: string;
+  readonly changeNote?: string | null;
   readonly idempotencyKey?: string;
   readonly source: AsyncIterable<Uint8Array>;
 }
@@ -35,6 +38,10 @@ export interface ImportSessionView {
   readonly state: ImportSessionTable['state'];
   readonly originalFilename: string;
   readonly modelName: string;
+  readonly purpose: 'new_model' | 'new_version';
+  readonly targetModelId: string | null;
+  readonly versionLabel: string | null;
+  readonly changeNote: string | null;
   readonly uploadedBytes: number;
   readonly checksum: string | null;
   readonly progress: number;
@@ -79,8 +86,18 @@ export class LocalImportService {
     const existing = input.idempotencyKey
       ? await this.findByIdempotencyKey(input.ownerId, input.idempotencyKey)
       : undefined;
-    if (existing) return existing;
+    if (existing) return matchingReplay(existing, input);
 
+    const target = input.targetModelId
+      ? await this.database
+          .selectFrom('catalogue_models')
+          .select(['id', 'name'])
+          .where('id', '=', input.targetModelId)
+          .where('owner_id', '=', input.ownerId)
+          .executeTakeFirst()
+      : undefined;
+    if (input.targetModelId && !target)
+      throw new ImportSessionNotFoundError('Target model does not exist');
     const sessionId = randomUUID();
     const now = new Date();
     try {
@@ -92,7 +109,11 @@ export class LocalImportService {
           state: 'receiving',
           original_filename: input.originalFilename.trim(),
           claimed_mime_type: input.claimedMimeType.trim(),
-          model_name: input.modelName.trim(),
+          model_name: target?.name ?? (input.modelName as string).trim(),
+          purpose: target ? 'new_version' : 'new_model',
+          target_model_id: target?.id ?? null,
+          version_label: target ? (input.versionLabel as string).trim() : null,
+          change_note: target ? (input.changeNote ?? null) : null,
           idempotency_key: input.idempotencyKey?.trim() ?? null,
           uploaded_bytes: 0,
           checksum: null,
@@ -110,7 +131,7 @@ export class LocalImportService {
     } catch (error) {
       if (input.idempotencyKey) {
         const raced = await this.findByIdempotencyKey(input.ownerId, input.idempotencyKey);
-        if (raced) return raced;
+        if (raced) return matchingReplay(raced, input);
       }
       throw error;
     }
@@ -197,7 +218,7 @@ export class LocalImportService {
         .where('id', '=', sessionId)
         .executeTakeFirstOrThrow();
 
-      const modelId = randomUUID();
+      const modelId = session.target_model_id ?? randomUUID();
       const versionId = randomUUID();
       const publishedAt = new Date();
       const processedFiles = await transaction
@@ -215,30 +236,45 @@ export class LocalImportService {
       if (processedFiles.some((file) => file.duplicate_decision === 'required')) {
         throw new Error('Duplicate decisions are required before publication');
       }
-      await insertModel(transaction, {
-        id: modelId,
-        owner_id: session.owner_id,
-        name: session.model_name,
-        description: '',
-        import_source: 'upload',
-        source_url: null,
-        creator: null,
-        license: null,
-        favorite: false,
-        current_version_id: versionId,
-        cover_asset_id: null,
-        print_count: 0,
-        last_printed_at: null,
-        created_at: publishedAt,
-        updated_at: publishedAt,
-      });
+      if (session.purpose === 'new_model') {
+        await insertModel(transaction, {
+          id: modelId,
+          owner_id: session.owner_id,
+          name: session.model_name,
+          description: '',
+          import_source: 'upload',
+          source_url: null,
+          creator: null,
+          license: null,
+          favorite: false,
+          current_version_id: versionId,
+          cover_asset_id: null,
+          print_count: 0,
+          last_printed_at: null,
+          created_at: publishedAt,
+          updated_at: publishedAt,
+        });
+      } else {
+        const target = await transaction
+          .selectFrom('catalogue_models')
+          .select('id')
+          .where('id', '=', modelId)
+          .where('owner_id', '=', session.owner_id)
+          .forUpdate()
+          .executeTakeFirst();
+        if (!target) throw new ImportSessionNotFoundError('Target model does not exist');
+      }
       await insertDraftVersion(transaction, {
         id: versionId,
         model_id: modelId,
-        label: 'v1',
-        change_note: null,
+        label: session.version_label ?? 'v1',
+        change_note: session.change_note,
         metadata_schema_version: 1,
-        metadata_snapshot: { name: session.model_name, importSessionId: session.id },
+        metadata_snapshot: {
+          name: session.model_name,
+          importSessionId: session.id,
+          purpose: session.purpose,
+        },
         created_at: publishedAt,
         published_at: null,
       });
@@ -291,6 +327,13 @@ export class LocalImportService {
         });
       }
       await publishVersion(transaction, versionId, publishedAt);
+      if (session.purpose === 'new_version')
+        await transaction
+          .updateTable('catalogue_models')
+          .set({ current_version_id: versionId, updated_at: publishedAt })
+          .where('id', '=', modelId)
+          .where('owner_id', '=', session.owner_id)
+          .executeTakeFirstOrThrow();
       const completed = await transaction
         .updateTable('import_sessions')
         .set({
@@ -422,9 +465,37 @@ function validateUpload(input: LocalUploadInput): void {
   boundedText(input.ownerId, 1, 100, 'ownerId');
   boundedText(input.originalFilename, 1, 1024, 'originalFilename');
   boundedText(input.claimedMimeType, 1, 255, 'claimedMimeType');
-  boundedText(input.modelName, 1, 300, 'modelName');
+  if (input.targetModelId === undefined) {
+    boundedText(input.modelName as string, 1, 300, 'modelName');
+    if (input.versionLabel !== undefined || input.changeNote !== undefined)
+      throw new TypeError('Version metadata requires a target model');
+  } else {
+    boundedText(input.targetModelId, 1, 100, 'targetModelId');
+    boundedText(input.versionLabel as string, 1, 100, 'versionLabel');
+    if (input.modelName !== undefined)
+      throw new TypeError('modelName cannot be supplied for a new version');
+    if (
+      input.changeNote !== undefined &&
+      input.changeNote !== null &&
+      (typeof input.changeNote !== 'string' ||
+        input.changeNote.length > 20_000 ||
+        input.changeNote.includes('\u0000'))
+    )
+      throw new TypeError('changeNote is invalid');
+  }
   if (input.idempotencyKey !== undefined)
     boundedText(input.idempotencyKey, 1, 200, 'idempotencyKey');
+}
+
+function matchingReplay(existing: ImportSessionView, input: LocalUploadInput): ImportSessionView {
+  const expectedPurpose = input.targetModelId ? 'new_version' : 'new_model';
+  if (
+    existing.purpose !== expectedPurpose ||
+    existing.targetModelId !== (input.targetModelId ?? null) ||
+    (expectedPurpose === 'new_version' && existing.versionLabel !== input.versionLabel?.trim())
+  )
+    throw new TypeError('Idempotency key belongs to another import');
+  return existing;
 }
 
 function boundedText(value: string, minimum: number, maximum: number, name: string): void {
@@ -445,6 +516,10 @@ function mapSession(row: Selectable<ImportSessionTable>): ImportSessionView {
     state: row.state,
     originalFilename: row.original_filename,
     modelName: row.model_name,
+    purpose: row.purpose,
+    targetModelId: row.target_model_id,
+    versionLabel: row.version_label,
+    changeNote: row.change_note,
     uploadedBytes: parseByteSize(row.uploaded_bytes),
     checksum: row.checksum,
     progress: row.progress,

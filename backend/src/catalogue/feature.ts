@@ -9,6 +9,12 @@ import type {
   CatalogueDatabaseSchema,
 } from './schema.js';
 import {
+  type CatalogueAssetDownloads,
+  CatalogueAssetNotFoundError,
+  CatalogueAssetRangeError,
+  CatalogueAssetUnavailableError,
+} from './assets.js';
+import {
   CatalogueConflictError,
   type CatalogueDeletionPolicy,
   CatalogueNotFoundError,
@@ -29,6 +35,7 @@ export interface CatalogueFeatureOptions {
   readonly identity: CatalogueIdentityBoundary;
   readonly deletionPolicy?: CatalogueDeletionPolicy;
   readonly service?: Omit<CatalogueServiceOptions, 'deletionPolicy'>;
+  readonly assetDownloads?: CatalogueAssetDownloads;
 }
 
 export interface CatalogueFeature {
@@ -55,6 +62,48 @@ export function registerCatalogueFeature(
 
   application.get('/api/v1/catalogue/models/:modelId', authenticated, async (request) =>
     call(() => service.getModel(ownerId(request), pathId(request, 'modelId'))),
+  );
+
+  application.get(
+    '/api/v1/catalogue/assets/:assetId/download',
+    authenticated,
+    async (request, reply) => {
+      if (!options.assetDownloads) throw new Error('Catalogue asset downloads are not configured');
+      try {
+        const asset = await options.assetDownloads.open(
+          ownerId(request),
+          pathId(request, 'assetId'),
+          byteRange(request.headers.range),
+        );
+        const contentLength = asset.range
+          ? asset.range.end - asset.range.start + 1
+          : asset.byteSize;
+        reply
+          .status(asset.range ? 206 : 200)
+          .type(asset.mimeType)
+          .header('Accept-Ranges', 'bytes')
+          .header('Content-Length', String(contentLength))
+          .header('ETag', `"${asset.checksum}"`)
+          .header('Content-Disposition', contentDisposition(asset.filename))
+          .header('Cache-Control', 'private, max-age=31536000, immutable');
+        if (asset.range)
+          reply.header(
+            'Content-Range',
+            `bytes ${asset.range.start}-${asset.range.end}/${asset.byteSize}`,
+          );
+        return reply.send(asset.stream);
+      } catch (error) {
+        if (error instanceof CatalogueAssetRangeError) {
+          reply.header('Content-Range', `bytes */${error.byteSize}`);
+          throw new HttpError(416, 'catalogue_asset_range_invalid', error.message);
+        }
+        if (error instanceof CatalogueAssetNotFoundError)
+          throw new HttpError(404, 'catalogue_asset_not_found', error.message);
+        if (error instanceof CatalogueAssetUnavailableError)
+          throw new HttpError(409, 'catalogue_asset_unavailable', error.message);
+        throw error;
+      }
+    },
   );
 
   application.patch('/api/v1/catalogue/models/:modelId', authenticated, async (request) =>
@@ -317,6 +366,28 @@ function requiredDate(value: unknown, field: string): Date {
   const date = new Date(requiredString(value, field));
   if (!Number.isFinite(date.getTime())) invalid(`${field} must be an ISO date`);
   return date;
+}
+
+function byteRange(
+  value: string | undefined,
+): { readonly start: number; readonly end?: number } | undefined {
+  if (value === undefined) return undefined;
+  const match = /^bytes=(\d+)-(\d*)$/.exec(value);
+  if (!match) throw new HttpError(416, 'catalogue_asset_range_invalid', 'Byte range is invalid');
+  const start = Number(match[1]);
+  const end = match[2] ? Number(match[2]) : undefined;
+  if (
+    !Number.isSafeInteger(start) ||
+    start < 0 ||
+    (end !== undefined && (!Number.isSafeInteger(end) || end < start))
+  )
+    throw new HttpError(416, 'catalogue_asset_range_invalid', 'Byte range is invalid');
+  return end === undefined ? { start } : { start, end };
+}
+
+function contentDisposition(filename: string): string {
+  const fallback = filename.replaceAll(/["\\\r\n]/g, '_').replaceAll(/[^\x20-\x7e]/g, '_');
+  return `attachment; filename="${fallback || 'asset'}"; filename*=UTF-8''${encodeURIComponent(filename)}`;
 }
 
 function stringArray(value: unknown, field: string): string[] {

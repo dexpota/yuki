@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 
 import {
   type CatalogueDatabaseSchema,
+  CatalogueAssetDownloads,
   type CataloguePortabilityDatabaseSchema,
   CataloguePortabilityOperations,
   CataloguePreviewOperations,
@@ -181,17 +182,21 @@ export async function createApiApplication(
       database: database as unknown as Database<SettingsDatabaseSchema>,
       identity,
     });
+    const blobStore = await (dependencies.createBlobStore ?? LocalBlobStore.create)(
+      configuration.localImport.storageRoot,
+    );
     registerCatalogueFeature(application, {
       database: database as unknown as Database<CatalogueDatabaseSchema>,
       identity,
+      assetDownloads: new CatalogueAssetDownloads(
+        database as unknown as Database<CatalogueDatabaseSchema>,
+        blobStore,
+      ),
     });
     registerCatalogueSearchFeature(application, {
       database: database as unknown as Database<CatalogueDatabaseSchema>,
       identity,
     });
-    const blobStore = await (dependencies.createBlobStore ?? LocalBlobStore.create)(
-      configuration.localImport.storageRoot,
-    );
     registerLocalImportFeature(application, {
       identity,
       service: new LocalImportService(

@@ -1,3 +1,4 @@
+export * from './assets.js';
 export {
   type CatalogueFeature,
   type CatalogueFeatureOptions,

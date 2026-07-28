@@ -87,4 +87,64 @@ describe('local import HTTP transport', () => {
     expect(response.statusCode).toBe(400);
     expect(response.json().error.code).toBe('upload_header_invalid');
   });
+
+  it('accepts a browser-streamed upload with durable new-version intent', async () => {
+    application = await createHttpApplication();
+    const receive = vi.fn(async () => ({
+      id: '10000000-0000-4000-8000-000000000002',
+      state: 'queued' as const,
+      originalFilename: 'revised cube.stl',
+      modelName: 'Calibration cube',
+      purpose: 'new_version' as const,
+      targetModelId: '20000000-0000-4000-8000-000000000002',
+      versionLabel: 'v2',
+      changeNote: 'Stronger base',
+      uploadedBytes: 5,
+      checksum: 'b'.repeat(64),
+      progress: 50,
+      modelId: null,
+      error: null,
+      createdAt: new Date('2026-07-23T10:00:00Z'),
+      updatedAt: new Date('2026-07-23T10:00:00Z'),
+      completedAt: null,
+    }));
+    registerLocalImportFeature(application, {
+      service: { receive } as unknown as LocalImportService,
+      identity: {
+        requireOwner: async () => undefined,
+        ownerForRequest: () => ({
+          owner: { id: '20000000-0000-4000-8000-000000000001', username: 'Owner' },
+          sessionId: 'session-1',
+        }),
+      },
+    });
+
+    const response = await application.inject({
+      method: 'POST',
+      url: '/api/v1/catalogue/models/20000000-0000-4000-8000-000000000002/versions/import',
+      headers: {
+        'content-type': 'application/octet-stream',
+        'x-yuki-value-encoding': 'percent',
+        'x-yuki-filename': 'revised%20cube.stl',
+        'x-yuki-version-label': 'v2',
+        'x-yuki-change-note': 'Stronger%20base',
+      },
+      payload: Buffer.from('model'),
+    });
+
+    expect(response.statusCode).toBe(202);
+    expect(receive).toHaveBeenCalledWith(
+      expect.objectContaining({
+        targetModelId: '20000000-0000-4000-8000-000000000002',
+        versionLabel: 'v2',
+        changeNote: 'Stronger base',
+        originalFilename: 'revised cube.stl',
+      }),
+    );
+    expect(response.json()).toMatchObject({
+      purpose: 'new_version',
+      targetModelId: '20000000-0000-4000-8000-000000000002',
+      versionLabel: 'v2',
+    });
+  });
 });
