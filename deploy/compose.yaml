@@ -94,6 +94,45 @@ services:
     tmpfs:
       - /tmp:size=16m,mode=1777
 
+  maintenance:
+    image: yuki-backend:development
+    build: *backend-build
+    entrypoint: ["node", "dist/platform/maintenance/main.js"]
+    command: ["verify"]
+    restart: "no"
+    environment:
+      YUKI_DATABASE_URL: postgresql://${YUKI_POSTGRES_USER:-yuki}:${YUKI_POSTGRES_PASSWORD:-yuki-development-only}@postgres:5432/${YUKI_POSTGRES_DB:-yuki}
+      YUKI_STORAGE_ROOT: /data/yuki
+      YUKI_STORAGE_BACKEND: ${YUKI_STORAGE_BACKEND:-local}
+      YUKI_S3_ENDPOINT: ${YUKI_S3_ENDPOINT:-http://minio:9000}
+      YUKI_S3_REGION: ${YUKI_S3_REGION:-us-east-1}
+      YUKI_S3_BUCKET: ${YUKI_S3_BUCKET:-yuki}
+      YUKI_S3_ACCESS_KEY_ID: ${YUKI_S3_ACCESS_KEY_ID:-yuki-minio}
+      YUKI_S3_SECRET_ACCESS_KEY: ${YUKI_S3_SECRET_ACCESS_KEY:-yuki-development-minio-secret}
+      YUKI_S3_FORCE_PATH_STYLE: ${YUKI_S3_FORCE_PATH_STYLE:-true}
+      YUKI_S3_MULTIPART_THRESHOLD_BYTES: ${YUKI_S3_MULTIPART_THRESHOLD_BYTES:-8388608}
+      YUKI_S3_SIGNED_DOWNLOAD_TTL_SECONDS: ${YUKI_S3_SIGNED_DOWNLOAD_TTL_SECONDS:-300}
+    networks:
+      - data
+      - outbound
+    volumes:
+      - type: volume
+        source: storage_data
+        target: /data/yuki
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+        required: false
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+
   api:
     image: yuki-backend:development
     build: *backend-build

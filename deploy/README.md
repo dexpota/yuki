@@ -52,6 +52,59 @@ docker compose down
 Do not add `--volumes` unless intentionally deleting the local database, stored
 assets, and proxy state.
 
+## Full backup and clean-install restore
+
+Create a full backup from a running Compose installation:
+
+```sh
+./deploy/backup.sh /secure/path/yuki-$(date +%Y%m%d).yuki-backup
+```
+
+The script gracefully stops the proxy, API, and worker, allowing in-flight work
+to drain for up to `YUKI_MAINTENANCE_DRAIN_SECONDS` (120 seconds by default).
+It then creates a PostgreSQL custom dump, verifies every referenced object,
+streams the final package with mode `0600`, and resumes services. A failure also
+attempts to resume the stopped services and removes the incomplete package.
+Keep enough free space for one database dump plus the final backup.
+Set `YUKI_COMPOSE_ENV_FILE` when the deployment uses an env file other than
+`deploy/.env`.
+
+Local backups bundle the referenced object bytes. S3 backups include a verified
+inventory, not a second copy of the bucket. Replicate or back up the S3 bucket
+separately and keep the same configured bucket available for restore.
+
+Restore is intentionally limited to a clean installation. From the new checkout,
+configure `deploy/.env` with the target database and storage backend, build the
+backend image, and start only PostgreSQL:
+
+```sh
+docker compose --project-directory deploy --file deploy/compose.yaml build maintenance migrate
+docker compose --project-directory deploy --file deploy/compose.yaml up --detach postgres
+./deploy/restore.sh /secure/path/yuki-20260729.yuki-backup
+```
+
+For the bundled MinIO S3 profile, start `minio` and `minio-init` as well before
+running restore:
+
+```sh
+docker compose --project-directory deploy --file deploy/compose.yaml \
+  --profile s3 up --detach postgres minio minio-init
+```
+
+Restore first verifies the package, refuses a database with any public
+relations, restores local bytes or verifies referenced S3 bytes, invokes
+`pg_restore`, applies newer migrations, and runs a live object integrity scan.
+The API, worker, and proxy are enabled only after every check succeeds. If a
+step fails, the installation remains in maintenance mode; correct the cause and
+retry against a new clean database and local storage volume.
+
+The backup deliberately excludes `YUKI_MASTER_KEY`, deployment environment
+files, and storage credentials. Back up the master key separately in a secure
+secret store and configure the exact same value before starting the restored
+API or worker. The backup itself contains sensitive database content and should
+be encrypted at the destination. See
+[`FULL-BACKUP-FORMAT.md`](../docs/FULL-BACKUP-FORMAT.md).
+
 ## Configuration
 
 | Variable | Development default | Purpose |
