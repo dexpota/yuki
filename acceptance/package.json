@@ -1,0 +1,17 @@
+{
+  "name": "@yuki/acceptance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "acceptance": "playwright test",
+    "test:clean": "./run-clean-compose.sh",
+    "test:headed": "playwright test --headed",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.55.0",
+    "@types/node": "26.1.1",
+    "typescript": "7.0.2"
+  }
+}

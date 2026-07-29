@@ -52,7 +52,8 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | O02 | Complete | Hostile parser/archive, mapped-IPv6 SSRF, URL-credential redaction, CSRF, expiring single-use confirmation, and non-root/read-only container checks pass; live migration, API, frontend, and processor image probes verified |
 | O04 | Complete | The 10,000-model/30,000-version/30,000-asset reference dataset with 100,000 relationships, 5,000 attempts, and 8,000 thumbnail states passes real loopback API, browser usability, and indexed-plan budgets; the slowest measured API page was 25.8 ms |
 | O03 | Complete | Writer-draining Compose commands now produce and clean-restore verified PostgreSQL/local packages or S3 inventories; isolated dump/restore, migration, object-integrity, and API-readiness rehearsal passed |
-| O01 | Ready | Foundation, frontend shell, HTTP conventions, and identity UI prerequisites are complete |
+| O01 | Complete | Disposable full-Compose Playwright runner, clean-install owner setup/sign-in project, reusable authenticated fixture, failure artifacts, and representative core navigation passed in Chrome |
+| O05 | Ready | O01 completed the final release-validation prerequisite |
 
 All tasks not listed above remain blocked by the DAG.
 

@@ -16,7 +16,8 @@
     "test": "pnpm --recursive --if-present test",
     "lint": "biome lint .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test:acceptance": "pnpm --filter @yuki/acceptance test:clean"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.4",

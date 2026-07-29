@@ -1,6 +1,14 @@
 {
   "files": {
-    "includes": ["**", "!!**/dist", "!!**/coverage", "!!**/node_modules"]
+    "includes": [
+      "**",
+      "!!**/dist",
+      "!!**/coverage",
+      "!!**/node_modules",
+      "!!acceptance/.auth",
+      "!!acceptance/playwright-report",
+      "!!acceptance/test-results"
+    ]
   },
   "formatter": {
     "enabled": true,

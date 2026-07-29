@@ -87,11 +87,12 @@ backend/                one server artifact and image
     platform/            database, HTTP, jobs, storage, logs, test support
   migrations/            ordered migration artifacts
 processor/              restricted conversion image and tool definitions
+acceptance/             Playwright clean-install workflows and reusable browser fixtures
 deploy/                 Compose, proxy, backup, and restore assets
-docs/                   ADRs and export-format specification
+docs/                   ADRs and stable format specifications
 ```
 
-`frontend` produces the static browser bundle. `backend` produces one container image that is started with either the API or worker command; this is process separation within one modular application, not a service boundary. Both commands reuse the same feature behavior without copying it. `processor` is a separate artifact only because untrusted file conversion needs operating-system isolation. `deploy` contains operational artifacts rather than application code.
+`frontend` produces the static browser bundle. `backend` produces one container image that is started with either the API or worker command; this is process separation within one modular application, not a service boundary. Both commands reuse the same feature behavior without copying it. `processor` is a separate artifact only because untrusted file conversion needs operating-system isolation. `acceptance` drives the deployed artifacts exclusively through their public browser boundary. `deploy` contains operational artifacts rather than application code.
 
 Within a feature, related behavior, persistence or transport code, UI, and tests stay close together. Start with files directly in the feature directory; introduce workflow subdirectories such as `browse/` or `versioning/` only when the feature becomes difficult to navigate. Do not pre-create empty architectural layers.
 
