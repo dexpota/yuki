@@ -29,6 +29,23 @@ describe('API composition configuration', () => {
       }),
     ).toThrow('YUKI_ALLOWED_ORIGINS must contain comma-separated HTTP(S) origins');
   });
+
+  it('accepts S3 storage without requiring a local storage root', () => {
+    const environment = validEnvironment();
+    delete environment.YUKI_STORAGE_ROOT;
+    Object.assign(environment, {
+      YUKI_STORAGE_BACKEND: 's3',
+      YUKI_S3_ENDPOINT: 'https://objects.example.test',
+      YUKI_S3_REGION: 'us-east-1',
+      YUKI_S3_BUCKET: 'yuki',
+      YUKI_S3_ACCESS_KEY_ID: 'access-key',
+      YUKI_S3_SECRET_ACCESS_KEY: 'secret-key',
+    });
+    expect(readApiCompositionConfiguration(environment).storage).toMatchObject({
+      backend: 's3',
+      bucket: 'yuki',
+    });
+  });
 });
 
 const databaseUrl = process.env.YUKI_TEST_DATABASE_URL;

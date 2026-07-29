@@ -53,7 +53,12 @@ import {
   installHttpObservability,
   type Logger,
 } from './platform/observability/index.js';
-import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
+import {
+  type BlobStore,
+  createBlobStore,
+  readStorageConfiguration,
+  type StorageConfiguration,
+} from './platform/storage/index.js';
 import {
   type PrinterControlDatabaseSchema,
   PrinterControlService,
@@ -88,6 +93,7 @@ export interface ApiCompositionConfiguration extends ApiConfiguration {
   readonly identityKeys: IdentityKeys;
   readonly allowedOrigins: readonly string[];
   readonly localImport: LocalImportConfiguration;
+  readonly storage: StorageConfiguration;
 }
 
 export type ApiDatabaseSchema = IdentityDatabaseSchema &
@@ -105,7 +111,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
   readonly createDatabase?: (configuration: DatabaseConfiguration) => Database<ApiDatabaseSchema>;
   readonly closeDatabase?: (database: Database<ApiDatabaseSchema>) => Promise<void>;
-  readonly createBlobStore?: (root: string) => Promise<BlobStore>;
+  readonly createBlobStore?: (configuration: StorageConfiguration) => Promise<BlobStore>;
 }
 
 export async function runApi(dependencies: ApiEntrypointDependencies = {}): Promise<number> {
@@ -154,11 +160,11 @@ export async function createApiApplication(
   database: Database<ApiDatabaseSchema>,
   configuration: Pick<
     ApiCompositionConfiguration,
-    'identityKeys' | 'allowedOrigins' | 'environment' | 'localImport'
+    'identityKeys' | 'allowedOrigins' | 'environment' | 'localImport' | 'storage'
   >,
   dependencies: {
     readonly closeDatabase?: (database: Database<ApiDatabaseSchema>) => Promise<void>;
-    readonly createBlobStore?: (root: string) => Promise<BlobStore>;
+    readonly createBlobStore?: (configuration: StorageConfiguration) => Promise<BlobStore>;
   } = {},
 ) {
   const application = await createHttpApplication({
@@ -188,8 +194,8 @@ export async function createApiApplication(
       database: database as unknown as Database<SettingsDatabaseSchema>,
       identity,
     });
-    const blobStore = await (dependencies.createBlobStore ?? LocalBlobStore.create)(
-      configuration.localImport.storageRoot,
+    const blobStore = await (dependencies.createBlobStore ?? createBlobStore)(
+      configuration.storage,
     );
     registerCatalogueFeature(application, {
       database: database as unknown as Database<CatalogueDatabaseSchema>,
@@ -212,6 +218,7 @@ export async function createApiApplication(
           maximumUploadBytes: configuration.localImport.maximumUploadBytes,
           progressIntervalBytes: configuration.localImport.progressIntervalBytes,
         },
+        configuration.storage.backend,
       ),
       processing: {
         files: (sessionId) =>
@@ -227,7 +234,7 @@ export async function createApiApplication(
     const portabilityOperations = new CataloguePortabilityOperations(
       database as unknown as Database<CataloguePortabilityDatabaseSchema>,
       blobStore,
-      'local',
+      configuration.storage.backend,
       configuration.localImport.maximumUploadBytes,
     );
     registerCataloguePortabilityFeature(application, {
@@ -257,6 +264,7 @@ export async function createApiApplication(
     const printHistory = new PrintHistoryService(
       database as unknown as Database<PrintHistoryDatabaseSchema>,
       blobStore,
+      configuration.storage.backend,
     );
     const printerMonitoring = new PrinterMonitoringService(
       database as unknown as Database<PrinterMonitoringDatabaseSchema>,
@@ -339,10 +347,22 @@ export function readApiCompositionConfiguration(
   }
   const allowedOrigins = readAllowedOrigins(environment.YUKI_ALLOWED_ORIGINS, issues);
   const localImport = readLocalImportConfiguration(environment, issues);
-  if (issues.length > 0 || database === undefined || identityKeys === undefined) {
+  let storage: StorageConfiguration | undefined;
+  try {
+    storage = readStorageConfiguration(environment);
+  } catch (error) {
+    if (error instanceof ConfigurationError) issues.push(...error.issues);
+    else throw error;
+  }
+  if (
+    issues.length > 0 ||
+    database === undefined ||
+    identityKeys === undefined ||
+    storage === undefined
+  ) {
     throw new ConfigurationError(issues);
   }
-  return { ...api, database, identityKeys, allowedOrigins, localImport };
+  return { ...api, database, identityKeys, allowedOrigins, localImport, storage };
 }
 
 function createIdentityDatabase(configuration: DatabaseConfiguration): Database<ApiDatabaseSchema> {

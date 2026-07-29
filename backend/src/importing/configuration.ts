@@ -1,5 +1,4 @@
 export interface LocalImportConfiguration {
-  readonly storageRoot: string;
   readonly maximumUploadBytes: number;
   readonly progressIntervalBytes: number;
   readonly workerPollingIntervalMs: number;
@@ -10,10 +9,7 @@ export function readLocalImportConfiguration(
   environment: NodeJS.ProcessEnv,
   issues: string[],
 ): LocalImportConfiguration {
-  const storageRoot = environment.YUKI_STORAGE_ROOT?.trim();
-  if (!storageRoot) issues.push('YUKI_STORAGE_ROOT is required');
   return {
-    storageRoot: storageRoot ?? '.',
     maximumUploadBytes: readPositiveInteger(
       environment.YUKI_MAXIMUM_UPLOAD_BYTES,
       'YUKI_MAXIMUM_UPLOAD_BYTES',

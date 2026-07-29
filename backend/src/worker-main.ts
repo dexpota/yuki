@@ -51,7 +51,12 @@ import {
   type ProcessorSupervisorClientConfiguration,
   readProcessorSupervisorClientConfiguration,
 } from './platform/processor/supervisor/index.js';
-import { type BlobStore, LocalBlobStore } from './platform/storage/index.js';
+import {
+  type BlobStore,
+  createBlobStore,
+  readStorageConfiguration,
+  type StorageConfiguration,
+} from './platform/storage/index.js';
 import {
   OctoPrintControlGateway,
   OctoPrintCommandGateway,
@@ -93,6 +98,7 @@ export interface WorkerCompositionConfiguration extends WorkerConfiguration {
   readonly database: DatabaseConfiguration;
   readonly masterKey: Buffer;
   readonly localImport: LocalImportConfiguration;
+  readonly storage: StorageConfiguration;
   readonly processor: ProcessorSupervisorClientConfiguration;
 }
 
@@ -101,7 +107,7 @@ export interface WorkerEntrypointDependencies extends EntrypointDependencies {
     configuration: DatabaseConfiguration,
   ) => Database<WorkerDatabaseSchema>;
   readonly closeDatabase?: (database: Database<WorkerDatabaseSchema>) => Promise<void>;
-  readonly createBlobStore?: (root: string) => Promise<BlobStore>;
+  readonly createBlobStore?: (configuration: StorageConfiguration) => Promise<BlobStore>;
 }
 
 export async function runWorker(dependencies: WorkerEntrypointDependencies = {}): Promise<number> {
@@ -118,8 +124,8 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
         const health = new HealthRegistry();
         database = (dependencies.createDatabase ?? createWorkerDatabase)(configuration.database);
         try {
-          const blobStore = await (dependencies.createBlobStore ?? LocalBlobStore.create)(
-            configuration.localImport.storageRoot,
+          const blobStore = await (dependencies.createBlobStore ?? createBlobStore)(
+            configuration.storage,
           );
           const service = new LocalImportService(
             database as unknown as Database<ImportDatabaseSchema>,
@@ -128,23 +134,25 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               maximumUploadBytes: configuration.localImport.maximumUploadBytes,
               progressIntervalBytes: configuration.localImport.progressIntervalBytes,
             },
+            configuration.storage.backend,
           );
           const processorClient = new ProcessorSupervisorClient(configuration.processor);
           const importPipeline = new LocalImportPipeline(
             database as unknown as Database<ImportDatabaseSchema>,
             blobStore,
             new SupervisorImportContentProcessor(processorClient),
+            configuration.storage.backend,
           );
           const portabilityOperations = new CataloguePortabilityOperations(
             database as unknown as Database<CataloguePortabilityDatabaseSchema>,
             blobStore,
-            'local',
+            configuration.storage.backend,
             configuration.localImport.maximumUploadBytes,
           );
           const portability = new CataloguePortabilityService(
             database as unknown as Database<CatalogueDatabaseSchema>,
             blobStore,
-            { storageBackend: 'local' },
+            { storageBackend: configuration.storage.backend },
           );
           const previews = new CataloguePreviewService(
             database as unknown as Database<PreviewDatabaseSchema>,
@@ -158,6 +166,7 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
           const printHistory = new PrintHistoryService(
             database as unknown as Database<PrintHistoryDatabaseSchema>,
             blobStore,
+            configuration.storage.backend,
           );
           const monitoring = new PrinterMonitoringService(
             database as unknown as Database<PrinterMonitoringDatabaseSchema>,
@@ -209,7 +218,10 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               printerPolls,
               printStartCommands,
               printerControlCommands,
-              configuration.localImport,
+              {
+                ...configuration.localImport,
+                storageBackend: configuration.storage.backend,
+              },
               cancellation.signal,
               logger,
             );
@@ -260,6 +272,13 @@ export function readWorkerCompositionConfiguration(
     else throw error;
   }
   const localImport = readLocalImportConfiguration(environment, issues);
+  let storage: StorageConfiguration | undefined;
+  try {
+    storage = readStorageConfiguration(environment);
+  } catch (error) {
+    if (error instanceof ConfigurationError) issues.push(...error.issues);
+    else throw error;
+  }
   let processor: ProcessorSupervisorClientConfiguration | undefined;
   try {
     processor = readProcessorSupervisorClientConfiguration(environment);
@@ -271,10 +290,11 @@ export function readWorkerCompositionConfiguration(
     issues.length > 0 ||
     database === undefined ||
     masterKey === undefined ||
+    storage === undefined ||
     processor === undefined
   )
     throw new ConfigurationError(issues);
-  return { ...worker, database, masterKey, localImport, processor };
+  return { ...worker, database, masterKey, localImport, storage, processor };
 }
 
 export async function createWorkerDiagnosticsApplication(logger: Logger, health: HealthRegistry) {
@@ -308,7 +328,7 @@ async function runLocalImportWorkerLoop(
   printerPolls: PrinterPollScheduler,
   printStartCommands: PrintStartCommandService,
   printerControlCommands: PrinterControlCommandService,
-  configuration: LocalImportConfiguration,
+  configuration: LocalImportConfiguration & { readonly storageBackend: string },
   signal: AbortSignal,
   logger: Logger,
 ): Promise<void> {
@@ -334,7 +354,11 @@ async function runLocalImportWorkerLoop(
         blobStore,
         previewGenerator,
         previews,
-        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+        {
+          workerId,
+          leaseDurationMs: configuration.jobLeaseDurationMs,
+          storageBackend: configuration.storageBackend,
+        },
       );
       const queueProcessed = await processNextQueueEvaluationJob(
         database as unknown as Database<QueueDatabaseSchema>,

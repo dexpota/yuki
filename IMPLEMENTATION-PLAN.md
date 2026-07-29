@@ -47,9 +47,11 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | N02 | Ready | N01 now provides the transactional external-delivery outbox |
 | N03 | Complete | The authenticated shell now shows a five-second live unread badge; the notification center supports unread filtering, per-item read state, mark-all-read, event context links, and tested error/empty states |
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
+| S02 | Complete | Installation-wide local/S3 selection, validated vendor-neutral configuration, bounded multipart streaming, integrity/range/signing behavior, private MinIO deployment, and the shared contract suite passed against real MinIO |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 | O02 | Complete | Hostile parser/archive, mapped-IPv6 SSRF, URL-credential redaction, CSRF, expiring single-use confirmation, and non-root/read-only container checks pass; live migration, API, frontend, and processor image probes verified |
 | O04 | Complete | The 10,000-model/30,000-version/30,000-asset reference dataset with 100,000 relationships, 5,000 attempts, and 8,000 thumbnail states passes real loopback API, browser usability, and indexed-plan budgets; the slowest measured API page was 25.8 ms |
+| O03 | Ready | S02 completed the final backup/restore prerequisite |
 
 All tasks not listed above remain blocked by the DAG.
 

@@ -5,8 +5,7 @@ import { readLocalImportConfiguration } from '../../src/importing/index.js';
 describe('local import configuration', () => {
   it('uses documented resource and worker defaults', () => {
     const issues: string[] = [];
-    expect(readLocalImportConfiguration({ YUKI_STORAGE_ROOT: '/data/yuki' }, issues)).toEqual({
-      storageRoot: '/data/yuki',
+    expect(readLocalImportConfiguration({}, issues)).toEqual({
       maximumUploadBytes: 2 * 1024 * 1024 * 1024,
       progressIntervalBytes: 1024 * 1024,
       workerPollingIntervalMs: 1_000,
@@ -15,7 +14,7 @@ describe('local import configuration', () => {
     expect(issues).toEqual([]);
   });
 
-  it('reports missing storage and invalid positive integer settings together', () => {
+  it('reports invalid positive integer settings together', () => {
     const issues: string[] = [];
     readLocalImportConfiguration(
       {
@@ -27,7 +26,6 @@ describe('local import configuration', () => {
       issues,
     );
     expect(issues).toEqual([
-      'YUKI_STORAGE_ROOT is required',
       'YUKI_MAXIMUM_UPLOAD_BYTES must be a positive safe integer',
       'YUKI_UPLOAD_PROGRESS_INTERVAL_BYTES must be a positive safe integer',
       'YUKI_IMPORT_POLL_INTERVAL_MS must be a positive safe integer',

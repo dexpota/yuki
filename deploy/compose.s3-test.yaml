@@ -1,0 +1,11 @@
+# Test-only overlay. The default deployment keeps MinIO private.
+services:
+  minio:
+    ports:
+      - "127.0.0.1:19000:9000"
+    networks:
+      - data
+      - s3_test
+
+networks:
+  s3_test:
