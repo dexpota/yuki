@@ -368,7 +368,8 @@ The MVP is complete when a user can, from a clean Docker Compose installation:
 
 These decisions do not change the product direction, but they should be resolved before implementation begins:
 
-1. The external notification channel for the MVP, such as email, Telegram, or a generic webhook.
+1. ~~The external notification channel for the MVP, such as email, Telegram, or
+   a generic webhook.~~ Resolved as a generic HTTPS webhook by ADR-0007.
 2. The exact S3-compatible provider used for integration testing.
 3. The maximum default upload and ZIP extraction sizes.
 4. ~~The supported STEP-to-preview conversion approach and its deployment/licensing constraints.~~ Resolved by ADR-0005.

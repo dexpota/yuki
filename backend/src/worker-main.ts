@@ -69,16 +69,20 @@ import {
   PrinterPollScheduler,
   type PrintHistoryDatabaseSchema,
   type NotificationDatabaseSchema,
+  ExternalNotificationService,
   PrintHistoryService,
   PrintStartCommandService,
   type PrintStartDatabaseSchema,
   processNextPrinterPollJob,
   processNextPrinterControlJob,
   processNextPrintStartJob,
+  processNextExternalNotificationJob,
   processNextQueueEvaluationJob,
   type QueueDatabaseSchema,
   QueueService,
   SupervisorGcodeFactsProvider,
+  NotificationWebhookDestinationPolicy,
+  WebhookNotificationSender,
 } from './printing/index.js';
 
 export const workerArtifact = 'backend-worker';
@@ -161,6 +165,13 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
           const queue = new QueueService(database as unknown as Database<QueueDatabaseSchema>);
           const gcodeFacts = new SupervisorGcodeFactsProvider(processorClient);
           const printerSecrets = new SecretVault(configuration.masterKey);
+          const notificationDestinations = new NotificationWebhookDestinationPolicy();
+          const externalNotifications = new ExternalNotificationService(
+            database as unknown as Database<NotificationDatabaseSchema>,
+            printerSecrets,
+            notificationDestinations,
+          );
+          const notificationSender = new WebhookNotificationSender(notificationDestinations);
           const printerDestinations = new PrinterDestinationPolicy();
           const monitoringGateway = new OctoPrintMonitoringGateway();
           const printHistory = new PrintHistoryService(
@@ -218,6 +229,8 @@ export async function runWorker(dependencies: WorkerEntrypointDependencies = {})
               printerPolls,
               printStartCommands,
               printerControlCommands,
+              externalNotifications,
+              notificationSender,
               {
                 ...configuration.localImport,
                 storageBackend: configuration.storage.backend,
@@ -328,6 +341,8 @@ async function runLocalImportWorkerLoop(
   printerPolls: PrinterPollScheduler,
   printStartCommands: PrintStartCommandService,
   printerControlCommands: PrinterControlCommandService,
+  externalNotifications: ExternalNotificationService,
+  notificationSender: WebhookNotificationSender,
   configuration: LocalImportConfiguration & { readonly storageBackend: string },
   signal: AbortSignal,
   logger: Logger,
@@ -386,6 +401,12 @@ async function runLocalImportWorkerLoop(
         printerControlCommands,
         { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
       );
+      const notificationProcessed = await processNextExternalNotificationJob(
+        database as unknown as Database<NotificationDatabaseSchema>,
+        externalNotifications,
+        notificationSender,
+        { workerId, leaseDurationMs: configuration.jobLeaseDurationMs },
+      );
       processed =
         localImportProcessed ||
         portabilityProcessed ||
@@ -393,9 +414,10 @@ async function runLocalImportWorkerLoop(
         queueProcessed ||
         printerPollProcessed ||
         printStartProcessed ||
-        printerControlProcessed;
+        printerControlProcessed ||
+        notificationProcessed;
     } catch (error) {
-      logger.error('local_import_worker_iteration_failed', { error });
+      logger.error('worker_iteration_failed', { error });
     }
     if (processed) continue;
     try {

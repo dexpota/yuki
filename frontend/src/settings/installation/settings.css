@@ -33,6 +33,25 @@
 .settings-summary h2:not(:first-child) {
   margin-top: 1.5rem;
 }
+.notification-settings {
+  margin-top: 1rem;
+}
+.settings-check {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+.settings-check input {
+  width: 1rem;
+  height: 1rem;
+}
+.delivery-diagnostics ul {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+.delivery-diagnostics li + li {
+  margin-top: 0.5rem;
+}
 @media (max-width: 700px) {
   .settings-page {
     padding: 1.5rem 0;

@@ -20,8 +20,9 @@ export interface InstallationSettingsView {
   };
   readonly authentication: { readonly mode: 'password' };
   readonly notifications: {
-    readonly mode: 'disabled';
-    readonly configurable: false;
+    readonly mode: 'webhook';
+    readonly configurable: true;
+    readonly apiPath: '/api/v1/notifications/webhook-configuration';
     readonly message: string;
   };
   readonly configurationSurfaces: {
@@ -171,9 +172,10 @@ function assemble(
     retention,
     authentication: { mode: 'password' },
     notifications: {
-      mode: 'disabled',
-      configurable: false,
-      message: 'Notification channels are not available in this release.',
+      mode: 'webhook',
+      configurable: true,
+      apiPath: '/api/v1/notifications/webhook-configuration',
+      message: 'Generic HTTPS webhook delivery is available.',
     },
     configurationSurfaces: {
       printers: { apiPath: '/api/v1/printing/printers' },

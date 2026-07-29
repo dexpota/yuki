@@ -8,6 +8,8 @@ export class UnsafePrinterDestinationError extends Error {
 export interface PrinterDestination {
   readonly origin: string;
   readonly baseUrl: string;
+  /** Resolved, policy-approved addresses for adapters that pin DNS at connection time. */
+  readonly addresses?: readonly string[];
 }
 
 export interface PrinterDestinationPolicyOptions {
@@ -65,7 +67,7 @@ export class PrinterDestinationPolicy {
 
     parsed.hostname = hostname;
     parsed.pathname = `${parsed.pathname.replace(/\/+$/, '')}/`;
-    return { origin: parsed.origin, baseUrl: parsed.toString() };
+    return { origin: parsed.origin, baseUrl: parsed.toString(), addresses };
   }
 }
 

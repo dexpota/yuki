@@ -68,7 +68,9 @@ import {
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
   type NotificationDatabaseSchema,
+  ExternalNotificationService,
   NotificationService,
+  NotificationWebhookDestinationPolicy,
   type PrintHistoryDatabaseSchema,
   PrintHistoryService,
   type PrintStartDatabaseSchema,
@@ -304,6 +306,11 @@ export async function createApiApplication(
     registerNotificationFeature(application, {
       identity,
       service: new NotificationService(database as unknown as Database<NotificationDatabaseSchema>),
+      external: new ExternalNotificationService(
+        database as unknown as Database<NotificationDatabaseSchema>,
+        identity.secrets,
+        new NotificationWebhookDestinationPolicy(),
+      ),
     });
     installHttpObservability(application, {
       service: apiArtifact,

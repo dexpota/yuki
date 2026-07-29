@@ -17,6 +17,7 @@ describe('printer destination policy', () => {
     await expect(policy.validate('http://printer.home.arpa:5000/octoprint')).resolves.toEqual({
       origin: 'http://printer.home.arpa:5000',
       baseUrl: 'http://printer.home.arpa:5000/octoprint/',
+      addresses: ['192.168.1.22'],
     });
     await expect(policy.validate('http://metadata.invalid/latest')).rejects.toBeInstanceOf(
       UnsafePrinterDestinationError,
@@ -72,6 +73,7 @@ describe('printer destination policy', () => {
     await expect(policy.validate('http://[2001:4860:4860::8888]:5000/')).resolves.toEqual({
       origin: 'http://[2001:4860:4860::8888]:5000',
       baseUrl: 'http://[2001:4860:4860::8888]:5000/',
+      addresses: ['2001:4860:4860::8888'],
     });
     await expect(policy.validate('http://[0:0:0:0:0:0:0:1]:5000/')).rejects.toBeInstanceOf(
       UnsafePrinterDestinationError,

@@ -429,7 +429,8 @@ These items remain product or discovery decisions and must become ADRs before th
 
 1. **STEP conversion:** exact Open Cascade-based tool, license, supported constructs, image size, and resource limits.
 2. **G-code policy:** normalized metadata schema and the rule table separating hard conflicts, warnings, and unknowns.
-3. **External notifications:** accept the recommended generic webhook or select email/Telegram and define secret/configuration behavior.
+3. **External notifications:** decided in ADR-0007; the MVP uses a generic
+   HTTPS webhook with an optional encrypted bearer token.
 4. **S3 compatibility target:** decided in ADR-0006; MinIO is the automated
    contract target and no additional provider is claimed for MVP certification.
 5. **Resource defaults:** maximum upload, archive member count, expanded archive size, compression ratio, processing time, and export retention.

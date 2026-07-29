@@ -125,8 +125,10 @@ the locally built processor to its immutable image ID before invoking it. See
 
 The `postgres_data` and `storage_data` named volumes are the default durable
 application state. `proxy_data` and `proxy_config` retain Caddy state. The
-`application` and `data` networks are internal. The `edge` network contains only
-the proxy, which is the sole service publishing a host port.
+`application` and `data` networks are internal. The API and worker also join the
+unprivileged `outbound` network so configured OctoPrint, S3, and webhook
+destinations are reachable; neither publishes a port there. The `edge` network
+contains the proxy, which is the sole service publishing a host port.
 
 ## Validate
 

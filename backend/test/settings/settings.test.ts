@@ -78,7 +78,11 @@ integration('owner-scoped installation settings', () => {
     expect(await service.get(ownerOne)).toMatchObject({
       version: 0,
       authentication: { mode: 'password' },
-      notifications: { mode: 'disabled' },
+      notifications: {
+        mode: 'webhook',
+        configurable: true,
+        apiPath: '/api/v1/notifications/webhook-configuration',
+      },
     });
     const saved = await service.update(ownerOne, {
       expectedVersion: 0,

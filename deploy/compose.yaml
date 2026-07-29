@@ -120,6 +120,7 @@ services:
     networks:
       - application
       - data
+      - outbound
     volumes:
       - type: volume
         source: storage_data
@@ -218,6 +219,7 @@ services:
       YUKI_PROCESSOR_RESPONSE_ROOT: /tmp/yuki-processor-responses
     networks:
       - data
+      - outbound
     volumes:
       - type: volume
         source: storage_data
@@ -347,6 +349,7 @@ services:
 
 networks:
   edge:
+  outbound:
   application:
     internal: true
   data:

@@ -3,9 +3,14 @@ import { type FormEvent, useEffect, useState } from 'react';
 
 import { ApiError } from '../../shared/api/http.js';
 import {
+  getNotificationDeliveries,
+  getNotificationWebhookConfiguration,
   getInstallationSettings,
   type InstallationSettings,
   installationSettingsQueryKey,
+  notificationDeliveriesQueryKey,
+  notificationWebhookQueryKey,
+  updateNotificationWebhookConfiguration,
   updateInstallationSettings,
 } from './api.js';
 import './settings.css';
@@ -133,8 +138,6 @@ export function InstallationSettingsPage({ csrfToken }: { readonly csrfToken: st
         <section className="settings-card settings-summary">
           <h2>Authentication</h2>
           <p>Password authentication is active.</p>
-          <h2>Notifications</h2>
-          <p>{draft.notifications.message}</p>
           <h2>Printers and storage</h2>
           <p>
             <a href="/printers">Manage printers</a> through the printer configuration feature.
@@ -147,7 +150,141 @@ export function InstallationSettingsPage({ csrfToken }: { readonly csrfToken: st
           {mutation.isPending ? 'Saving…' : 'Save settings'}
         </button>
       </form>
+      <NotificationWebhookSettings csrfToken={csrfToken} />
     </main>
+  );
+}
+
+function NotificationWebhookSettings({ csrfToken }: { readonly csrfToken: string }) {
+  const queryClient = useQueryClient();
+  const configuration = useQuery({
+    queryKey: notificationWebhookQueryKey,
+    queryFn: getNotificationWebhookConfiguration,
+  });
+  const deliveries = useQuery({
+    queryKey: notificationDeliveriesQueryKey,
+    queryFn: getNotificationDeliveries,
+  });
+  const [enabled, setEnabled] = useState(false);
+  const [endpointUrl, setEndpointUrl] = useState('');
+  const [bearerToken, setBearerToken] = useState('');
+  const [clearBearerToken, setClearBearerToken] = useState(false);
+  useEffect(() => {
+    if (configuration.data) setEnabled(configuration.data.enabled);
+  }, [configuration.data]);
+  const mutation = useMutation({
+    mutationFn: () => {
+      if (!configuration.data) throw new Error('Webhook configuration has not loaded');
+      return updateNotificationWebhookConfiguration(
+        {
+          enabled,
+          expectedVersion: configuration.data.version,
+          ...(endpointUrl.trim() ? { endpointUrl: endpointUrl.trim() } : {}),
+          ...(bearerToken.trim() ? { bearerToken: bearerToken.trim() } : {}),
+          ...(clearBearerToken ? { clearBearerToken: true } : {}),
+        },
+        csrfToken,
+      );
+    },
+    onSuccess: (saved) => {
+      queryClient.setQueryData(notificationWebhookQueryKey, saved);
+      queryClient.invalidateQueries({ queryKey: notificationDeliveriesQueryKey });
+      setEndpointUrl('');
+      setBearerToken('');
+      setClearBearerToken(false);
+    },
+  });
+  if (configuration.isPending)
+    return (
+      <section className="settings-card" aria-busy="true">
+        Loading webhook settings…
+      </section>
+    );
+  if (configuration.isError)
+    return (
+      <section className="settings-card" role="alert">
+        Webhook settings could not be loaded.
+      </section>
+    );
+  const saved = configuration.data;
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    mutation.mutate();
+  };
+  return (
+    <form className="settings-card notification-settings" onSubmit={submit}>
+      <div>
+        <h2>External notifications</h2>
+        <p>
+          Send versioned HTTPS webhooks for completed, failed, or cancelled prints and active-job
+          disconnects. Private-network destinations and redirects are rejected.
+        </p>
+      </div>
+      <label className="settings-field settings-check">
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(event) => setEnabled(event.target.checked)}
+        />
+        <span>Enable webhook delivery</span>
+      </label>
+      <label className="settings-field">
+        <span>Webhook URL</span>
+        <input
+          type="url"
+          value={endpointUrl}
+          required={!saved.configured}
+          placeholder={saved.endpointDisplay ?? 'https://hooks.example.com/yuki'}
+          onChange={(event) => setEndpointUrl(event.target.value)}
+        />
+        {saved.configured ? (
+          <small>Configured destination: {saved.endpointDisplay}. Leave blank to keep it.</small>
+        ) : null}
+      </label>
+      <label className="settings-field">
+        <span>Bearer token (optional)</span>
+        <input
+          type="password"
+          value={bearerToken}
+          autoComplete="new-password"
+          placeholder={saved.bearerTokenConfigured ? 'Stored securely; leave blank to keep' : ''}
+          onChange={(event) => setBearerToken(event.target.value)}
+        />
+      </label>
+      {saved.bearerTokenConfigured ? (
+        <label className="settings-field settings-check">
+          <input
+            type="checkbox"
+            checked={clearBearerToken}
+            disabled={bearerToken.trim().length > 0}
+            onChange={(event) => setClearBearerToken(event.target.checked)}
+          />
+          <span>Remove stored bearer token</span>
+        </label>
+      ) : null}
+      {mutation.error ? <p role="alert">{webhookErrorMessage(mutation.error)}</p> : null}
+      {mutation.isSuccess ? <p role="status">Webhook settings saved.</p> : null}
+      <button type="submit" disabled={mutation.isPending}>
+        {mutation.isPending ? 'Saving webhook…' : 'Save webhook'}
+      </button>
+      <div className="delivery-diagnostics">
+        <h3>Recent delivery diagnostics</h3>
+        {deliveries.data?.deliveries.length ? (
+          <ul>
+            {deliveries.data.deliveries.map((delivery) => (
+              <li key={delivery.id}>
+                <strong>{delivery.title}</strong>: {delivery.state}
+                {delivery.attemptCount ? ` after ${delivery.attemptCount} attempt(s)` : ''}
+                {delivery.responseStatus ? ` (HTTP ${delivery.responseStatus})` : ''}
+                {delivery.lastErrorMessage ? ` — ${delivery.lastErrorMessage}` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p>No external deliveries have been attempted yet.</p>
+        )}
+      </div>
+    </form>
   );
 }
 
@@ -206,4 +343,11 @@ function errorMessage(error: Error) {
   return error instanceof ApiError && error.status === 409
     ? 'Settings changed elsewhere. Reload and try again.'
     : 'Settings could not be saved.';
+}
+
+function webhookErrorMessage(error: Error) {
+  if (error instanceof ApiError && error.status === 409)
+    return 'Webhook settings changed elsewhere. Reload and try again.';
+  if (error instanceof ApiError && error.status === 400) return error.message;
+  return 'Webhook settings could not be saved.';
 }

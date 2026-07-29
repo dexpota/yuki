@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { InstallationSettingsPage } from '../../src/settings/installation/index.js';
 
 afterEach(() => {
+  cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -26,9 +27,18 @@ describe('installation settings page', () => {
 
   it('renders capability surfaces and saves validated settings with concurrency version', async () => {
     const settings = fixture();
-    const fetch = vi.fn(async (_input: string | URL | Request, init?: RequestInit) =>
-      Response.json(init?.method === 'PATCH' ? { ...settings, version: 4 } : settings),
-    );
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/notifications/webhook-configuration')) {
+        return Response.json(
+          init?.method === 'PATCH'
+            ? { ...webhookFixture(), enabled: true, configured: true, version: 2 }
+            : webhookFixture(),
+        );
+      }
+      if (url.includes('/notifications/deliveries')) return Response.json({ deliveries: [] });
+      return Response.json(init?.method === 'PATCH' ? { ...settings, version: 4 } : settings);
+    });
     vi.stubGlobal('fetch', fetch);
     render(
       <QueryClientProvider
@@ -42,15 +52,31 @@ describe('installation settings page', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
-    expect(screen.getByText(/Notification channels are not available/)).toBeInTheDocument();
+    expect(
+      await screen.findByRole('heading', { name: 'External notifications' }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/Webhook URL/)).toHaveAttribute(
+      'placeholder',
+      'https://hooks.example.test',
+    );
     expect(screen.getByRole('link', { name: 'Manage printers' })).toHaveAttribute(
       'href',
       '/printers',
     );
     fireEvent.change(screen.getByLabelText('Archive members'), { target: { value: '250' } });
     fireEvent.click(screen.getByRole('button', { name: 'Save settings' }));
-    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
-    const request = fetch.mock.calls[1]?.[1];
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(
+          ([input, init]) =>
+            String(input).includes('/settings/installation') && init?.method === 'PATCH',
+        ),
+      ).toBe(true),
+    );
+    const request = fetch.mock.calls.find(
+      ([input, init]) =>
+        String(input).includes('/settings/installation') && init?.method === 'PATCH',
+    )?.[1];
     expect(request?.headers).toBeInstanceOf(Headers);
     if (!(request?.headers instanceof Headers)) throw new Error('Expected request headers');
     expect(request.headers.get('x-csrf-token')).toBe('csrf');
@@ -59,6 +85,31 @@ describe('installation settings page', () => {
       limits: { archiveMaxMembers: 250 },
     });
     expect(await screen.findByText('Settings saved.')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Enable webhook delivery'));
+    fireEvent.change(screen.getByLabelText('Bearer token (optional)'), {
+      target: { value: 'rotated-token' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save webhook' }));
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(
+          ([input, init]) =>
+            String(input).includes('/notifications/webhook-configuration') &&
+            init?.method === 'PATCH',
+        ),
+      ).toBe(true),
+    );
+    const webhookRequest = fetch.mock.calls.find(
+      ([input, init]) =>
+        String(input).includes('/notifications/webhook-configuration') && init?.method === 'PATCH',
+    )?.[1];
+    expect(JSON.parse(String(webhookRequest?.body))).toEqual({
+      enabled: true,
+      bearerToken: 'rotated-token',
+      expectedVersion: 1,
+    });
+    expect(await screen.findByText('Webhook settings saved.')).toBeInTheDocument();
   });
 });
 function fixture() {
@@ -72,9 +123,10 @@ function fixture() {
     retention: { trashDays: 30, jobDays: 90, observationHistoryEntries: 120 },
     authentication: { mode: 'password' },
     notifications: {
-      mode: 'disabled',
-      configurable: false,
-      message: 'Notification channels are not available in this release.',
+      mode: 'webhook',
+      configurable: true,
+      apiPath: '/api/v1/notifications/webhook-configuration',
+      message: 'Generic HTTPS webhook delivery is available.',
     },
     configurationSurfaces: {
       printers: { apiPath: '/api/v1/printing/printers' },
@@ -82,5 +134,17 @@ function fixture() {
     },
     version: 3,
     updatedAt: null,
+  } as const;
+}
+
+function webhookFixture() {
+  return {
+    mode: 'webhook',
+    enabled: false,
+    configured: true,
+    endpointDisplay: 'https://hooks.example.test',
+    bearerTokenConfigured: true,
+    version: 1,
+    updatedAt: '2026-07-29T09:00:00.000Z',
   } as const;
 }
