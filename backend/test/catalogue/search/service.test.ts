@@ -3,8 +3,8 @@ import { readFile } from 'node:fs/promises';
 import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import type { CatalogueDatabaseSchema } from '../../../src/catalogue/schema.js';
 import {
+  type CatalogueSearchDatabaseSchema,
   CatalogueSearchRequestError,
   CatalogueSearchService,
 } from '../../../src/catalogue/search/index.js';
@@ -18,7 +18,7 @@ const databaseUrl = process.env.YUKI_TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
 
 integration('catalogue indexed search', () => {
-  let database: Database<CatalogueDatabaseSchema>;
+  let database: Database<CatalogueSearchDatabaseSchema>;
   let service: CatalogueSearchService;
   const schemaName = `c03_${process.pid}_${Date.now()}`;
   const ownerId = '10000000-0000-4000-8000-000000000001';
@@ -27,7 +27,7 @@ integration('catalogue indexed search', () => {
   const collectionId = '70000000-0000-4000-8000-000000000001';
 
   beforeAll(async () => {
-    const setup = createDatabase<CatalogueDatabaseSchema>(
+    const setup = createDatabase<CatalogueSearchDatabaseSchema>(
       configuration(databaseUrl as string, 'c03-setup'),
     );
     await sql.raw(`create schema "${schemaName}"`).execute(setup);
@@ -35,7 +35,9 @@ integration('catalogue indexed search', () => {
 
     const url = new URL(databaseUrl as string);
     url.searchParams.set('options', `-c search_path=${schemaName}`);
-    database = createDatabase<CatalogueDatabaseSchema>(configuration(url.toString(), 'c03-test'));
+    database = createDatabase<CatalogueSearchDatabaseSchema>(
+      configuration(url.toString(), 'c03-test'),
+    );
     await applyMigration(database, '0002_storage_objects.up.sql');
     await sql`create table identity_users (id uuid primary key)`.execute(database);
     await sql`insert into identity_users (id) values (${ownerId}), (${otherOwnerId})`.execute(
@@ -43,13 +45,14 @@ integration('catalogue indexed search', () => {
     );
     await applyMigration(database, '0004_catalogue.up.sql');
     await applyMigration(database, '0006_catalogue_search.up.sql');
+    await applyMigration(database, '0010_catalogue_previews.up.sql');
     await seedReferenceData(database, ownerId, otherOwnerId, tagId, collectionId);
     service = new CatalogueSearchService(database);
   }, 30_000);
 
   afterAll(async () => {
     if (database) await closeDatabase(database);
-    const cleanup = createDatabase<CatalogueDatabaseSchema>(
+    const cleanup = createDatabase<CatalogueSearchDatabaseSchema>(
       configuration(databaseUrl as string, 'c03-cleanup'),
     );
     await sql.raw(`drop schema if exists "${schemaName}" cascade`).execute(cleanup);
@@ -73,6 +76,19 @@ integration('catalogue indexed search', () => {
 
     const hidden = await service.search(ownerId, { query: 'other-owner-secret' });
     expect(hidden.items).toEqual([]);
+    await expect(
+      service.search(ownerId, { query: 'singular-description-token' }),
+    ).resolves.toMatchObject({
+      items: [
+        {
+          name: 'Model 42',
+          thumbnail: {
+            status: 'ready',
+            downloadUrl: expect.stringContaining('/api/v1/catalogue/previews/'),
+          },
+        },
+      ],
+    });
   });
 
   it('combines every catalogue filter and returns print projections', async () => {
@@ -210,7 +226,7 @@ integration('catalogue indexed search', () => {
 type SearchItem = Awaited<ReturnType<CatalogueSearchService['search']>>['items'][number];
 
 async function seedReferenceData(
-  database: Database<CatalogueDatabaseSchema>,
+  database: Database<CatalogueSearchDatabaseSchema>,
   ownerId: string,
   otherOwnerId: string,
   tagId: string,
@@ -277,6 +293,37 @@ async function seedReferenceData(
       set published_at = timestamptz '2025-01-01'
     `.execute(transaction);
     await sql`
+      insert into stored_objects (
+        id, backend, object_key, checksum, byte_size, state, reference_count,
+        created_at, updated_at
+      ) values (
+        md5('thumbnail-object-42')::uuid, 'local', 'thumbnails/model-42.svg',
+        repeat('b', 64), 12, 'committed', 1,
+        timestamptz '2025-01-01', timestamptz '2025-01-01'
+      )
+    `.execute(transaction);
+    await sql`
+      insert into catalogue_generated_artifacts (
+        id, owner_id, source_asset_id, kind, status, generator, generator_version,
+        stored_object_id, mime_type, byte_size, dimensions, summary, failure_code,
+        failure_message, attempt, created_at, updated_at, completed_at
+      ) values (
+        md5('thumbnail-artifact-42')::uuid, ${ownerId}, md5('asset-42')::uuid,
+        'thumbnail', 'ready', 'yuki-preview', '1',
+        md5('thumbnail-object-42')::uuid, 'image/svg+xml', 12, null, null, null,
+        null, 1, timestamptz '2025-01-01', timestamptz '2025-01-01',
+        timestamptz '2025-01-01'
+      )
+    `.execute(transaction);
+    await sql`
+      insert into stored_object_references (
+        stored_object_id, owner_type, owner_id, created_at
+      ) values (
+        md5('thumbnail-object-42')::uuid, 'catalogue_generated_artifact',
+        md5('thumbnail-artifact-42')::uuid, timestamptz '2025-01-01'
+      )
+    `.execute(transaction);
+    await sql`
       insert into catalogue_tags (id, owner_id, name, normalized_name, created_at)
       values (${tagId}, ${ownerId}, 'singular-tag-token', 'singular-tag-token', timestamptz '2025-01-01')
     `.execute(transaction);
@@ -298,7 +345,7 @@ async function seedReferenceData(
   await sql`analyze catalogue_tags`.execute(database);
 }
 
-async function applyMigration(database: Database<CatalogueDatabaseSchema>, name: string) {
+async function applyMigration<Schema>(database: Database<Schema>, name: string) {
   const source = await readFile(new URL(`../../../migrations/${name}`, import.meta.url), 'utf8');
   await sql.raw(source).execute(database);
 }

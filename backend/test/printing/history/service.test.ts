@@ -7,7 +7,10 @@ import { sql } from 'kysely';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { type CatalogueDatabaseSchema, CatalogueService } from '../../../src/catalogue/index.js';
-import { CatalogueSearchService } from '../../../src/catalogue/search/index.js';
+import {
+  type CatalogueSearchDatabaseSchema,
+  CatalogueSearchService,
+} from '../../../src/catalogue/search/index.js';
 import {
   closeDatabase,
   createDatabase,
@@ -58,6 +61,7 @@ integration('immutable print history', () => {
     for (const migration of [
       '0004_catalogue.up.sql',
       '0008_printers.up.sql',
+      '0010_catalogue_previews.up.sql',
       '0011_printer_monitoring.up.sql',
       '0013_printing_compatibility.up.sql',
       '0014_print_queue.up.sql',
@@ -236,7 +240,7 @@ integration('immutable print history', () => {
     );
     expect(
       await new CatalogueSearchService(
-        database as unknown as Database<CatalogueDatabaseSchema>,
+        database as unknown as Database<CatalogueSearchDatabaseSchema>,
       ).search(ownerId, { failed: true }),
     ).toMatchObject({ items: [expect.objectContaining({ id: modelId })] });
   });

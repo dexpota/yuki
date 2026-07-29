@@ -5,6 +5,7 @@ export {
 } from './feature.js';
 export {
   type CatalogueSearchDirection,
+  type CatalogueSearchDatabaseSchema,
   type CatalogueSearchInput,
   type CatalogueSearchItem,
   type CatalogueSearchPage,

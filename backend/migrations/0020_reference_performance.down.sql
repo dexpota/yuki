@@ -1,0 +1,4 @@
+drop index print_attempts_owner_failed_model_idx;
+drop index print_attempts_owner_printer_history_idx;
+drop index print_attempts_owner_model_history_idx;
+drop index print_attempts_owner_history_idx;

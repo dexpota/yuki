@@ -7,6 +7,11 @@ import type {
   CatalogueDatabaseSchema,
   CatalogueImportSource,
 } from '../schema.js';
+import type { GeneratedArtifactStatus, GeneratedArtifactTable } from '../previews/index.js';
+
+export type CatalogueSearchDatabaseSchema = CatalogueDatabaseSchema & {
+  readonly catalogue_generated_artifacts: GeneratedArtifactTable;
+};
 
 export const catalogueSearchSorts = [
   'name',
@@ -43,6 +48,10 @@ export interface CatalogueSearchItem {
   readonly favorite: boolean;
   readonly currentVersionId: string;
   readonly coverAssetId: string | null;
+  readonly thumbnail: {
+    readonly status: GeneratedArtifactStatus | 'missing';
+    readonly downloadUrl: string | null;
+  };
   readonly printCount: number;
   readonly lastPrintedAt: Date | null;
   readonly createdAt: Date;
@@ -64,6 +73,8 @@ interface SearchRow {
   readonly favorite: boolean;
   readonly current_version_id: string;
   readonly cover_asset_id: string | null;
+  readonly thumbnail_artifact_id: string | null;
+  readonly thumbnail_status: GeneratedArtifactStatus | null;
   readonly print_count: number;
   readonly last_printed_at: Date | null;
   readonly created_at: Date;
@@ -85,7 +96,7 @@ export class CatalogueSearchRequestError extends TypeError {
 }
 
 export class CatalogueSearchService {
-  constructor(private readonly database: Kysely<CatalogueDatabaseSchema>) {}
+  constructor(private readonly database: Kysely<CatalogueSearchDatabaseSchema>) {}
 
   async search(ownerId: string, input: CatalogueSearchInput = {}): Promise<CatalogueSearchPage> {
     requireUuid(ownerId, 'ownerId');
@@ -173,14 +184,43 @@ export class CatalogueSearchService {
 
     const order = sortExpression(sort);
     const result = await sql<SearchRow>`
+      with page as materialized (
+        select
+          m.id, m.name, m.description, m.creator, m.source_url, m.import_source,
+          m.favorite, m.current_version_id, m.cover_asset_id, m.print_count,
+          m.last_printed_at, m.created_at, m.updated_at
+        from catalogue_models m
+        where ${sql.join(filters, sql` and `)}
+        order by ${order} ${sql.raw(direction)} nulls last, m.id asc
+        limit ${limit + 1}
+      )
       select
-        m.id, m.name, m.description, m.creator, m.source_url, m.import_source,
-        m.favorite, m.current_version_id, m.cover_asset_id, m.print_count,
-        m.last_printed_at, m.created_at, m.updated_at
-      from catalogue_models m
-      where ${sql.join(filters, sql` and `)}
-      order by ${order} ${sql.raw(direction)} nulls last, m.id asc
-      limit ${limit + 1}
+        page.*,
+        thumbnail.id as thumbnail_artifact_id,
+        thumbnail.status as thumbnail_status
+      from page
+      left join lateral (
+        select artifact.id, artifact.status
+        from catalogue_assets asset
+        inner join catalogue_generated_artifacts artifact
+          on artifact.source_asset_id = asset.id
+          and artifact.owner_id = ${ownerId}
+          and artifact.kind = 'thumbnail'
+        where asset.model_id = page.id
+          and (
+            asset.id = page.cover_asset_id
+            or (
+              page.cover_asset_id is null
+              and asset.model_version_id = page.current_version_id
+            )
+          )
+        order by
+          (artifact.status = 'ready') desc,
+          artifact.updated_at desc,
+          artifact.id
+        limit 1
+      ) thumbnail on true
+      order by ${sortExpression(sort, 'page')} ${sql.raw(direction)} nulls last, page.id asc
     `.execute(this.database);
 
     const hasMore = result.rows.length > limit;
@@ -208,18 +248,18 @@ function cursorPredicate(
   )`;
 }
 
-function sortExpression(sort: CatalogueSearchSort): RawBuilder<unknown> {
+function sortExpression(sort: CatalogueSearchSort, alias: 'm' | 'page' = 'm'): RawBuilder<unknown> {
   switch (sort) {
     case 'name':
-      return sql`lower(m.name)`;
+      return sql`lower(${sql.ref(`${alias}.name`)})`;
     case 'importedAt':
-      return sql`m.created_at`;
+      return sql.ref(`${alias}.created_at`);
     case 'updatedAt':
-      return sql`m.updated_at`;
+      return sql.ref(`${alias}.updated_at`);
     case 'lastPrintedAt':
-      return sql`m.last_printed_at`;
+      return sql.ref(`${alias}.last_printed_at`);
     case 'printCount':
-      return sql`m.print_count`;
+      return sql.ref(`${alias}.print_count`);
   }
 }
 
@@ -295,6 +335,13 @@ function toItem(row: SearchRow): CatalogueSearchItem {
     favorite: row.favorite,
     currentVersionId: row.current_version_id,
     coverAssetId: row.cover_asset_id,
+    thumbnail: {
+      status: row.thumbnail_status ?? 'missing',
+      downloadUrl:
+        row.thumbnail_status === 'ready' && row.thumbnail_artifact_id
+          ? `/api/v1/catalogue/previews/${encodeURIComponent(row.thumbnail_artifact_id)}/download`
+          : null,
+    },
     printCount: row.print_count,
     lastPrintedAt: row.last_printed_at,
     createdAt: row.created_at,

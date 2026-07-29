@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 
 import {
   type AssetFormat,
+  type CatalogueItem,
   type CatalogueSearch,
   type CatalogueSort,
   listCollections,
@@ -178,9 +179,31 @@ export function CataloguePage() {
           {items.map((model) => (
             <li key={model.id}>
               <Link className="model-card" to={`/catalogue/models/${model.id}`}>
-                <span className="model-card-icon" aria-hidden="true">
-                  {model.favorite ? '★' : '◇'}
-                </span>
+                <div className="model-card-media">
+                  {model.thumbnail.status === 'ready' && model.thumbnail.downloadUrl ? (
+                    <img
+                      src={model.thumbnail.downloadUrl}
+                      alt={`${model.name} thumbnail`}
+                      loading="lazy"
+                      decoding="async"
+                      width="320"
+                      height="240"
+                    />
+                  ) : (
+                    <span
+                      className="model-card-thumbnail-fallback"
+                      role="img"
+                      aria-label={thumbnailFallback(model.thumbnail.status)}
+                    >
+                      ◇
+                    </span>
+                  )}
+                  {model.favorite ? (
+                    <span className="model-card-favorite" role="img" aria-label="Favorite">
+                      ★
+                    </span>
+                  ) : null}
+                </div>
                 <strong>{model.name}</strong>
                 <span>{model.creator || 'Unknown creator'}</span>
                 <small>
@@ -258,4 +281,11 @@ function booleanValue(value: boolean | undefined): string {
 
 function optionalBoolean(value: string): boolean | undefined {
   return value === '' ? undefined : value === 'true';
+}
+
+function thumbnailFallback(status: CatalogueItem['thumbnail']['status']): string {
+  if (status === 'queued' || status === 'processing') return 'Thumbnail is being generated';
+  if (status === 'failed') return 'Thumbnail generation failed';
+  if (status === 'unsupported') return 'Thumbnail is unsupported';
+  return 'Thumbnail unavailable';
 }

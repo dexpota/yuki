@@ -1,8 +1,10 @@
 import type { Kysely } from 'kysely';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { CatalogueDatabaseSchema } from '../../../src/catalogue/schema.js';
-import { registerCatalogueSearchFeature } from '../../../src/catalogue/search/index.js';
+import {
+  type CatalogueSearchDatabaseSchema,
+  registerCatalogueSearchFeature,
+} from '../../../src/catalogue/search/index.js';
 import { createHttpApplication, HttpError } from '../../../src/platform/http/index.js';
 
 describe('catalogue search HTTP boundary', () => {
@@ -13,7 +15,7 @@ describe('catalogue search HTTP boundary', () => {
   it('requires an authenticated owner before searching', async () => {
     application = await createHttpApplication();
     registerCatalogueSearchFeature(application, {
-      database: {} as Kysely<CatalogueDatabaseSchema>,
+      database: {} as Kysely<CatalogueSearchDatabaseSchema>,
       identity: {
         requireOwner: async () => {
           throw new HttpError(401, 'authentication_required', 'Authentication is required');
@@ -36,7 +38,7 @@ describe('catalogue search HTTP boundary', () => {
   it('returns the stable search validation error before accessing persistence', async () => {
     application = await createHttpApplication();
     registerCatalogueSearchFeature(application, {
-      database: {} as Kysely<CatalogueDatabaseSchema>,
+      database: {} as Kysely<CatalogueSearchDatabaseSchema>,
       identity: {
         requireOwner: async () => undefined,
         ownerForRequest: () => ({

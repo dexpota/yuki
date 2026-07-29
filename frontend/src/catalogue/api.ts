@@ -23,6 +23,10 @@ export interface CatalogueItem {
   readonly favorite: boolean;
   readonly currentVersionId: string;
   readonly coverAssetId: string | null;
+  readonly thumbnail: {
+    readonly status: 'queued' | 'processing' | 'ready' | 'failed' | 'unsupported' | 'missing';
+    readonly downloadUrl: string | null;
+  };
   readonly printCount: number;
   readonly lastPrintedAt: string | null;
   readonly createdAt: string;

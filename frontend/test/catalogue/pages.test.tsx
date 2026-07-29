@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -13,6 +13,49 @@ afterEach(() => {
 });
 
 describe('catalogue pages', () => {
+  it('makes a bounded 50-model library page usable within two seconds', async () => {
+    const models = Array.from({ length: 50 }, (_, index) =>
+      item(
+        `model-${index + 1}`,
+        `Model ${String(index + 1).padStart(3, '0')}`,
+        index === 0
+          ? { status: 'ready', downloadUrl: '/api/v1/catalogue/previews/thumbnail-1/download' }
+          : index === 1
+            ? { status: 'processing', downloadUrl: null }
+            : index === 2
+              ? { status: 'failed', downloadUrl: null }
+              : index === 3
+                ? { status: 'unsupported', downloadUrl: null }
+                : undefined,
+      ),
+    );
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/tags') || url.endsWith('/collections')) return Response.json([]);
+      return Response.json({ items: models, nextCursor: 'page-2' });
+    });
+    vi.stubGlobal('fetch', fetch);
+
+    const startedAt = performance.now();
+    renderPage(<CataloguePage />);
+    const list = await screen.findByRole('list', { name: 'Models' });
+    expect(await within(list).findByRole('link', { name: /Model 050/ })).toBeInTheDocument();
+    const elapsedMs = performance.now() - startedAt;
+    expect(elapsedMs).toBeLessThan(2_000);
+    console.info(`O04 browser catalogue measurement: 50 cards usable in ${elapsedMs.toFixed(1)}ms`);
+    expect(within(list).getAllByRole('listitem')).toHaveLength(50);
+    const thumbnail = screen.getByRole('img', { name: 'Model 001 thumbnail' });
+    expect(thumbnail).toHaveAttribute('loading', 'lazy');
+    expect(thumbnail).toHaveAttribute('decoding', 'async');
+    expect(thumbnail).toHaveAttribute('src', '/api/v1/catalogue/previews/thumbnail-1/download');
+    expect(screen.getByRole('img', { name: 'Thumbnail is being generated' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Thumbnail generation failed' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Thumbnail is unsupported' })).toBeInTheDocument();
+    expect(screen.getAllByRole('img', { name: 'Thumbnail unavailable' })).toHaveLength(46);
+    expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
+    expect(fetch).toHaveBeenCalledTimes(3);
+  });
+
   it('searches and incrementally loads catalogue results', async () => {
     const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
@@ -184,7 +227,14 @@ function client() {
   });
 }
 
-function item(id: string, name: string) {
+function item(
+  id: string,
+  name: string,
+  thumbnail: {
+    readonly status: 'ready' | 'processing' | 'failed' | 'unsupported' | 'missing';
+    readonly downloadUrl: string | null;
+  } = { status: 'missing' as const, downloadUrl: null },
+) {
   return {
     id,
     name,
@@ -195,6 +245,7 @@ function item(id: string, name: string) {
     favorite: false,
     currentVersionId: 'version-2',
     coverAssetId: null,
+    thumbnail,
     printCount: 0,
     lastPrintedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',

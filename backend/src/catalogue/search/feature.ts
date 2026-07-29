@@ -3,12 +3,9 @@ import type { Kysely } from 'kysely';
 
 import type { OwnerContext } from '../../identity/index.js';
 import { HttpError } from '../../platform/http/index.js';
-import type {
-  CatalogueAssetFormat,
-  CatalogueDatabaseSchema,
-  CatalogueImportSource,
-} from '../schema.js';
+import type { CatalogueAssetFormat, CatalogueImportSource } from '../schema.js';
 import {
+  type CatalogueSearchDatabaseSchema,
   CatalogueSearchRequestError,
   CatalogueSearchService,
   type CatalogueSearchSort,
@@ -21,7 +18,7 @@ export interface CatalogueSearchIdentityBoundary {
 }
 
 export interface CatalogueSearchFeatureOptions {
-  readonly database: Kysely<CatalogueDatabaseSchema>;
+  readonly database: Kysely<CatalogueSearchDatabaseSchema>;
   readonly identity: CatalogueSearchIdentityBoundary;
 }
 

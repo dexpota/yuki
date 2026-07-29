@@ -24,7 +24,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | I02 | Complete | First-run, sign-in/out, authenticated routing, and session-expiry recovery verified |
 | C02 | Complete | Authenticated catalogue workflows and runnable API composition verified |
 | C03 | Complete | Indexed, owner-scoped search/filter/sort API with deterministic cursors and 10,000-model query-plan coverage |
-| C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, and version restore UI composed at the root route |
+| C04 | Complete | Catalogue browse/detail/edit, taxonomy filters, favorites, collections, version restore, and lazy generated-thumbnail cards with explicit fallbacks are composed at the root route |
 | C05 | Complete | Bounded STL/OBJ/3MF/STEP-to-GLB and G-code layer conversion, dimensions, thumbnails, restricted worker dispatch, APIs, and interactive rendering are composed; real Open Cascade STEP conversion passed in the production processor image |
 | C06 | Complete | Strict streaming export/re-import now preserves published versions/assets, ready generated artifacts, immutable print history/audits/photos, and fresh portable relationships; full PostgreSQL round-trip and repository checks pass |
 | C07 | Complete | Owner-scoped original downloads stream immutable bytes with range support; durable browser uploads now publish processed batches as new immutable versions while preserving prior versions |
@@ -49,7 +49,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | S01 | Complete | Authenticated versioned settings persistence, API, installation UI, configuration-surface links, migration, and PostgreSQL/frontend tests verified |
 | M04 | Complete | Feasibility ADR led to the decision to defer Thangs import beyond the MVP |
 | O02 | Complete | Hostile parser/archive, mapped-IPv6 SSRF, URL-credential redaction, CSRF, expiring single-use confirmation, and non-root/read-only container checks pass; live migration, API, frontend, and processor image probes verified |
-| O04 | Ready | C03, C04, and P09 are complete |
+| O04 | Complete | The 10,000-model/30,000-version/30,000-asset reference dataset with 100,000 relationships, 5,000 attempts, and 8,000 thumbnail states passes real loopback API, browser usability, and indexed-plan budgets; the slowest measured API page was 25.8 ms |
 
 All tasks not listed above remain blocked by the DAG.
 
@@ -109,7 +109,7 @@ The headings below are planning groups, not a request to create another director
 | C02 | Implement authenticated model CRUD, tag/collection/favorite management, immutable version creation, current-version restoration, and deletion-policy hooks. | BE, DB | F06, I01, C01 | C04, C06, C07, P09 |
 | C03 | Implement indexed search, filtering, deterministic cursor pagination, sorting, and print-count/last-printed projections. Query plans pass the reference-dataset budget. | BE, DB | F06, C01 | C04, O04 |
 | C04 | Implement catalogue browse, search/filter/sort, model details/editing, tags, collections, favorites, and version-history UI. | FE | F04, C02, C03 | O04, O05 |
-| C05 | Generate bounded GLB previews, dimensions, thumbnails, and G-code layer artifacts; render them interactively and show explicit failure/unsupported states. Original assets are never changed. | FE, BE, PROC | F07, F10, F11, C01, M02, M03 | C06, O02, O05 |
+| C05 | Generate bounded GLB previews, dimensions, thumbnails, and G-code layer artifacts; render them interactively and show explicit failure/unsupported states. Original assets are never changed. | FE, BE, PROC | F07, F10, F11, C01, M02, M03 | C06, O02, O04, O05 |
 | C06 | Define the versioned export manifest and implement streaming model export plus validated re-import preserving versions, assets, metadata, artifacts, and print history. | BE, DB, DOC | F07, F08, C01, C02, M02, C05, P09 | O03, O05 |
 | C07 | Add authenticated original-asset downloads and a browser-ready upload workflow that publishes a new immutable version through the import processor. | BE, DB | C02, M07 | O05 |
 
@@ -161,7 +161,7 @@ The headings below are planning groups, not a request to create another director
 | O01 | Establish Playwright acceptance infrastructure from a clean Compose installation, including reusable login/setup fixtures. Feature tasks add scenarios to it. | FE, BE, DEP | F02, F04, F06, I02 | O05 |
 | O02 | Run the security hardening pass: hostile parser corpus, archive attacks, SSRF, secret/log review, container permissions, CSRF, and safety confirmation tests. | BE, PROC, DEP | I01, F10, M02, C05, P07 | O05 |
 | O03 | Implement and test maintenance-mode backup and clean-install restore for PostgreSQL plus local/S3 objects, with separate master-key guidance. | BE, DEP, DOC | F05, F08, C06, S02 | O05 |
-| O04 | Seed the 10,000-model reference dataset, measure library usability, inspect query plans, and tune indexes/projections to meet the two-second target. | FE, BE, DB | C03, C04, P09 | O05 |
+| O04 | Seed the 10,000-model reference dataset, measure library usability, inspect query plans, and tune indexes/projections to meet the two-second target. | FE, BE, DB | C03, C04, C05, P09 | O05 |
 | O05 | Execute every MVP acceptance criterion, restart/recovery scenarios, upgrade rehearsal, and release documentation. No unresolved critical defect or undecided release blocker remains. | FE, BE, PROC, DEP, DOC | F09, I02, C04, C05, C06, M06, P07, P08, P09, P10, N02, N03, S01, S02, O01, O02, O03, O04 | — |
 
 ## 3. Scheduling the DAG

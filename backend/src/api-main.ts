@@ -4,6 +4,7 @@ import { sql } from 'kysely';
 
 import {
   type CatalogueDatabaseSchema,
+  type CatalogueSearchDatabaseSchema,
   CatalogueAssetDownloads,
   type CataloguePortabilityDatabaseSchema,
   CataloguePortabilityOperations,
@@ -199,7 +200,7 @@ export async function createApiApplication(
       ),
     });
     registerCatalogueSearchFeature(application, {
-      database: database as unknown as Database<CatalogueDatabaseSchema>,
+      database: database as unknown as Database<CatalogueSearchDatabaseSchema>,
       identity,
     });
     registerLocalImportFeature(application, {
