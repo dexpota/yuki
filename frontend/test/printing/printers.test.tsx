@@ -178,6 +178,23 @@ describe('printer workspace', () => {
     expect(screen.queryByText(/API key/i)).not.toBeInTheDocument();
   });
 
+  it('keeps the default printer dimensions valid against their numeric step bases', async () => {
+    renderRoute('/printers');
+    await screen.findByRole('heading', { name: 'Printers' });
+    fireEvent.click(screen.getByRole('button', { name: 'Add printer' }));
+
+    for (const name of [
+      'Width / diameter (mm)',
+      'Depth (mm)',
+      'Height (mm)',
+      'Nozzle diameter (mm)',
+      'Extruders',
+    ]) {
+      const input = screen.getByRole('spinbutton', { name }) as HTMLInputElement;
+      expect(input.checkValidity()).toBe(true);
+    }
+  });
+
   it('marks stale facts, explains compatibility, and requires a start confirmation', async () => {
     renderRoute('/printers/printer-1');
 

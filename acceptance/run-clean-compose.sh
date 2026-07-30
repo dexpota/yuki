@@ -25,6 +25,7 @@ esac
 
 compose() {
   YUKI_HTTP_PORT="$http_port" \
+    YUKI_ACCEPTANCE_FIXTURE_ROOT="$repository_root/acceptance/fixtures" \
     YUKI_ALLOWED_ORIGINS="http://127.0.0.1:${http_port},http://localhost:${http_port}" \
     YUKI_PROCESSOR_PORT="$processor_port" \
     YUKI_PROCESSOR_TOKEN="$processor_token" \
@@ -32,7 +33,8 @@ compose() {
       --env-file "$repository_root/deploy/.env.example" \
       --project-name "$project" \
       --project-directory "$repository_root/deploy" \
-      --file "$repository_root/deploy/compose.yaml" "$@"
+      --file "$repository_root/deploy/compose.yaml" \
+      --file "$repository_root/acceptance/compose.yaml" "$@"
 }
 
 cleanup() {
@@ -53,6 +55,19 @@ cleanup() {
 }
 trap cleanup EXIT HUP INT TERM
 
+wait_for_readiness() {
+  attempt=0
+  until curl --fail --silent "http://127.0.0.1:${http_port}/health/ready" >/dev/null; do
+    attempt=$((attempt + 1))
+    if [ "$attempt" -ge 120 ]; then
+      compose ps >&2
+      echo "Acceptance deployment did not become ready." >&2
+      exit 1
+    fi
+    sleep 1
+  done
+}
+
 cd "$repository_root"
 docker build --file processor/Dockerfile --tag "$processor_image" .
 pnpm --filter @yuki/backend build
@@ -66,18 +81,21 @@ YUKI_PROCESSOR_IMAGE="$processor_id" \
 supervisor_pid=$!
 
 compose build api web
-compose up --detach proxy worker
-
-attempt=0
-until curl --fail --silent "http://127.0.0.1:${http_port}/health/ready" >/dev/null; do
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge 120 ]; then
-    compose ps >&2
-    echo "Acceptance deployment did not become ready." >&2
-    exit 1
-  fi
-  sleep 1
-done
+compose up --detach proxy worker octoprint-a octoprint-b
+wait_for_readiness
 
 YUKI_ACCEPTANCE_BASE_URL="http://127.0.0.1:${http_port}" \
   pnpm --filter @yuki/acceptance acceptance
+
+compose restart api worker
+wait_for_readiness
+compose run --rm migrate
+compose up --detach --force-recreate api worker
+wait_for_readiness
+
+YUKI_ACCEPTANCE_BASE_URL="http://127.0.0.1:${http_port}" \
+  YUKI_ACCEPTANCE_POST_RESTART=1 \
+  pnpm --filter @yuki/acceptance exec playwright test \
+    --project chromium \
+    --no-deps \
+    --grep @post-restart

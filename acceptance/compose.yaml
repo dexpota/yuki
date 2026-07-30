@@ -1,0 +1,42 @@
+services:
+  octoprint-a:
+    image: node:24.18.0-alpine3.23
+    command: ["node", "/acceptance/virtual-octoprint.mjs"]
+    environment:
+      VIRTUAL_OCTOPRINT_NAME: Virtual Printer A
+      VIRTUAL_OCTOPRINT_API_KEY: acceptance-api-key
+    networks:
+      - outbound
+    volumes:
+      - type: bind
+        source: ${YUKI_ACCEPTANCE_FIXTURE_ROOT}/virtual-octoprint.mjs
+        target: /acceptance/virtual-octoprint.mjs
+        read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+
+  octoprint-b:
+    image: node:24.18.0-alpine3.23
+    command: ["node", "/acceptance/virtual-octoprint.mjs"]
+    environment:
+      VIRTUAL_OCTOPRINT_NAME: Virtual Printer B
+      VIRTUAL_OCTOPRINT_API_KEY: acceptance-api-key
+    networks:
+      - outbound
+    volumes:
+      - type: bind
+        source: ${YUKI_ACCEPTANCE_FIXTURE_ROOT}/virtual-octoprint.mjs
+        target: /acceptance/virtual-octoprint.mjs
+        read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+
+networks:
+  outbound:
+    internal: true

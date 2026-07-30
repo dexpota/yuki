@@ -329,7 +329,8 @@ The application must clearly distinguish stale monitoring data from live data. D
 
 ### Security and safety
 
-- The MVP is single-user but still requires authentication unless explicitly configured for a trusted isolated network.
+- The MVP is single-user and always requires password authentication. A trusted-network
+  authentication bypass is outside the MVP.
 - State-changing requests are protected against cross-site request forgery and unauthorized remote access.
 - Archives, geometry files, G-code parsing, and preview generation are treated as untrusted input.
 - Archive extraction prevents path traversal and decompression bombs.
@@ -364,15 +365,24 @@ The MVP is complete when a user can, from a clean Docker Compose installation:
 15. Restart the application without losing models, versions, queues, or print history.
 16. Use all core catalogue and OctoPrint features with no internet or cloud dependency, except for optional external notifications/storage.
 
-## 9. Decisions still needed before implementation
+## 9. Resolved implementation decisions
 
-These decisions do not change the product direction, but they should be resolved before implementation begins:
+All MVP implementation decisions are resolved:
 
 1. ~~The external notification channel for the MVP, such as email, Telegram, or
    a generic webhook.~~ Resolved as a generic HTTPS webhook by ADR-0007.
-2. The exact S3-compatible provider used for integration testing.
-3. The maximum default upload and ZIP extraction sizes.
+2. ~~The exact S3-compatible provider used for integration testing.~~ Resolved as
+   MinIO by ADR-0006.
+3. ~~The maximum default upload and ZIP extraction sizes.~~ Resolved as a 2 GiB
+   upload limit, 1,000 archive members, 10 GiB expanded bytes, and a 200:1
+   maximum compression ratio. These remain editable installation settings.
 4. ~~The supported STEP-to-preview conversion approach and its deployment/licensing constraints.~~ Resolved by ADR-0005.
-5. The precise G-code metadata rules that qualify as a hard incompatibility versus an overridable warning.
-6. The authentication behavior for trusted local-network installations.
-7. Whether deletion immediately removes stored files or uses a recoverable retention period.
+5. ~~The precise G-code metadata rules that qualify as a hard incompatibility
+   versus an overridable warning.~~ Resolved by the versioned rule set in
+   ADR-0004: known physical/profile conflicts are hard blocks; warnings and
+   unknown facts require a recorded override.
+6. ~~The authentication behavior for trusted local-network installations.~~
+   Resolved as mandatory password authentication for the MVP.
+7. ~~Whether deletion immediately removes stored files or uses a recoverable
+   retention period.~~ Resolved as a recoverable 30-day trash retention period
+   before unreferenced stored bytes are eligible for cleanup.

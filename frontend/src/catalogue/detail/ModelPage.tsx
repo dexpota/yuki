@@ -7,10 +7,13 @@ import { useSession } from '../../settings/identity/session.js';
 import {
   createCollection,
   deleteModel,
+  exportModel,
   getAssetPreviews,
   getModel,
+  getPortabilityOperation,
   listCollections,
   type ModelDetail,
+  portabilityDownloadPath,
   replaceCollections,
   replaceTags,
   requestAssetPreviews,
@@ -103,6 +106,7 @@ export function ModelPage() {
         </div>
         <div>
           <VersionHistory detail={value} csrfToken={csrfToken} onSuccess={applyDetail} />
+          <ModelExport modelId={value.model.id} csrfToken={csrfToken} />
           <section className="catalogue-panel danger-panel">
             <h2>Delete model</h2>
             <p>Its managed assets will follow the configured retention policy.</p>
@@ -465,7 +469,15 @@ function VersionHistory({ detail, csrfToken, onSuccess }: EditorProps) {
   });
   return (
     <section className="catalogue-panel">
-      <h2>Version history</h2>
+      <div className="catalogue-panel-heading">
+        <h2>Version history</h2>
+        <Link
+          className="button-link"
+          to={`/import?modelId=${encodeURIComponent(detail.model.id)}&modelName=${encodeURIComponent(detail.model.name)}`}
+        >
+          Add version
+        </Link>
+      </div>
       <ol className="version-list">
         {detail.versions.map((version) => {
           const current = version.id === detail.model.current_version_id;
@@ -482,7 +494,13 @@ function VersionHistory({ detail, csrfToken, onSuccess }: EditorProps) {
                 <ul className="asset-list">
                   {assets.map((asset) => (
                     <li key={asset.id}>
-                      {asset.original_filename} <small>{asset.format.toUpperCase()}</small>
+                      <a
+                        href={`/api/v1/catalogue/assets/${encodeURIComponent(asset.id)}/download`}
+                        download
+                      >
+                        {asset.original_filename}
+                      </a>{' '}
+                      <small>{asset.format.toUpperCase()}</small>
                     </li>
                   ))}
                 </ul>
@@ -504,6 +522,67 @@ function VersionHistory({ detail, csrfToken, onSuccess }: EditorProps) {
         })}
       </ol>
       <MutationError mutations={[mutation]} />
+    </section>
+  );
+}
+
+function ModelExport({
+  modelId,
+  csrfToken,
+}: {
+  readonly modelId: string;
+  readonly csrfToken: string;
+}) {
+  const queryClient = useQueryClient();
+  const [operationId, setOperationId] = useState<string | null>(null);
+  const operationKey = ['catalogue', 'portability', operationId] as const;
+  const operation = useQuery({
+    queryKey: operationKey,
+    queryFn: () => getPortabilityOperation(requiredOperationId(operationId)),
+    enabled: operationId !== null,
+    refetchInterval: (query) =>
+      query.state.data?.state === 'queued' || query.state.data?.state === 'running' ? 1_000 : false,
+  });
+  const create = useMutation({
+    mutationFn: () => exportModel(modelId, csrfToken),
+    onSuccess: (created) => {
+      setOperationId(created.id);
+      queryClient.setQueryData(['catalogue', 'portability', created.id], created);
+    },
+  });
+  const result = operation.data;
+
+  return (
+    <section className="catalogue-panel">
+      <h2>Export model</h2>
+      <p>Download a portable package containing every version, asset, preview, and print record.</p>
+      <button
+        type="button"
+        disabled={create.isPending || result?.state === 'queued' || result?.state === 'running'}
+        onClick={() => create.mutate()}
+      >
+        {create.isPending || result?.state === 'queued' || result?.state === 'running'
+          ? `Preparing export… ${result?.progress ?? 0}%`
+          : 'Prepare export'}
+      </button>
+      {result?.state === 'succeeded' && result.downloadReady ? (
+        <p className="catalogue-success">
+          Export ready.{' '}
+          <a href={portabilityDownloadPath(result.id)} download>
+            Download Yuki package
+          </a>
+        </p>
+      ) : null}
+      {result?.state === 'failed' ? (
+        <p className="catalogue-error" role="alert">
+          {result.error?.message ?? 'The model could not be exported.'}
+        </p>
+      ) : null}
+      {create.isError || operation.isError ? (
+        <p className="catalogue-error" role="alert">
+          The model could not be exported. Try again.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -555,4 +634,9 @@ function modelFields(model: ModelDetail['model']) {
 
 function formatDate(value: string): string {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value));
+}
+
+function requiredOperationId(value: string | null): string {
+  if (!value) throw new Error('Portability operation is unavailable.');
+  return value;
 }

@@ -127,6 +127,20 @@ export interface PreviewArtifactList {
   readonly artifacts: readonly PreviewArtifact[];
 }
 
+export interface PortabilityOperation {
+  readonly id: string;
+  readonly kind: 'export' | 'import';
+  readonly state: 'queued' | 'running' | 'succeeded' | 'failed';
+  readonly sourceModelId: string | null;
+  readonly importedModelId: string | null;
+  readonly progress: number;
+  readonly downloadReady: boolean;
+  readonly error: { readonly code: string; readonly message: string } | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly completedAt: string | null;
+}
+
 export function listTags(): Promise<readonly Tag[]> {
   return apiRequest('/api/v1/catalogue/tags');
 }
@@ -244,6 +258,36 @@ export function restoreVersion(
 
 export function deleteModel(modelId: string, csrfToken: string): Promise<void> {
   return apiRequest<void>(modelPath(modelId), { method: 'DELETE', csrfToken });
+}
+
+export function exportModel(modelId: string, csrfToken: string): Promise<PortabilityOperation> {
+  return apiRequest<PortabilityOperation>(`${modelPath(modelId)}/exports`, {
+    method: 'POST',
+    csrfToken,
+    headers: { 'idempotency-key': crypto.randomUUID() },
+  });
+}
+
+export function importPortableModel(file: File, csrfToken: string): Promise<PortabilityOperation> {
+  return apiRequest<PortabilityOperation>('/api/v1/catalogue/imports', {
+    method: 'POST',
+    body: file,
+    csrfToken,
+    headers: {
+      'content-type': 'application/vnd.yuki.model+zip',
+      'idempotency-key': crypto.randomUUID(),
+    },
+  });
+}
+
+export function getPortabilityOperation(operationId: string): Promise<PortabilityOperation> {
+  return apiRequest<PortabilityOperation>(
+    `/api/v1/catalogue/portability/${encodeURIComponent(operationId)}`,
+  );
+}
+
+export function portabilityDownloadPath(operationId: string): string {
+  return `/api/v1/catalogue/portability/${encodeURIComponent(operationId)}/download`;
 }
 
 function modelPath(modelId: string): string {

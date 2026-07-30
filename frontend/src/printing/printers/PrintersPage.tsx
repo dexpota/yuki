@@ -25,9 +25,9 @@ import {
   listPrinters,
   listQueue,
   overrideQueueEntry,
-  printerEventsUrl,
   type Printer,
   type PrinterInput,
+  printerEventsUrl,
   removePrinter,
   removeQueueEntry,
   reorderQueue,
@@ -865,7 +865,7 @@ function NumberField({
       <input
         required
         type="number"
-        min="0.01"
+        min={step}
         step={step}
         value={value}
         onChange={(event) => onChange(event.target.value)}

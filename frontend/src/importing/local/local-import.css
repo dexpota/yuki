@@ -23,13 +23,43 @@
 }
 
 .local-import-form,
-.import-report {
+.import-report,
+.portable-import {
   display: grid;
   gap: 1.25rem;
   padding: 1.5rem;
   background: #16211c;
   border: 1px solid #35433b;
   border-radius: 0.8rem;
+}
+
+.local-import-form textarea {
+  min-height: 6rem;
+  padding: 0.75rem 0.85rem;
+  color: #e8eee9;
+  background: #101714;
+  border: 1px solid #415047;
+  border-radius: 0.4rem;
+  font: inherit;
+  resize: vertical;
+}
+
+.portable-import {
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.6fr) auto;
+  align-items: end;
+}
+
+.portable-import h2 {
+  margin: 0.25rem 0;
+}
+
+.portable-import p {
+  margin-bottom: 0;
+}
+
+.portable-success {
+  grid-column: 1 / -1;
+  color: #b9f6cd;
 }
 
 .local-import-form {

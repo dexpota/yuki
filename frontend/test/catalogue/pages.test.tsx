@@ -94,6 +94,17 @@ describe('catalogue pages', () => {
 
   it('edits metadata and restores an immutable version', async () => {
     const detail = modelDetail();
+    detail.assets.push({
+      id: 'asset-v1',
+      model_version_id: 'version-1',
+      role: 'geometry',
+      format: 'stl',
+      original_filename: 'benchy-v1.stl',
+      detected_mime_type: 'model/stl',
+      byte_size: 84,
+      checksum: 'a'.repeat(64),
+      imported_at: '2026-01-01T00:00:00.000Z',
+    });
     const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
       if (url.includes('/printing/print-attempts')) return Response.json({ attempts: [] });
@@ -113,6 +124,14 @@ describe('catalogue pages', () => {
     renderPage(<ModelPage />, queryClient, '/catalogue/models/model-1');
 
     expect(await screen.findByRole('heading', { name: 'Benchy', level: 1 })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add version' })).toHaveAttribute(
+      'href',
+      '/import?modelId=model-1&modelName=Benchy',
+    );
+    expect(screen.getByRole('link', { name: 'benchy-v1.stl' })).toHaveAttribute(
+      'href',
+      '/api/v1/catalogue/assets/asset-v1/download',
+    );
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
       target: { value: 'Better Benchy' },
     });
@@ -138,6 +157,52 @@ describe('catalogue pages', () => {
         ),
       ).toBe(true),
     );
+  });
+
+  it('prepares and exposes a portable model export', async () => {
+    const detail = modelDetail();
+    const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      if (url.includes('/printing/print-attempts')) return Response.json({ attempts: [] });
+      if (url.endsWith('/printing/printers')) return Response.json([]);
+      if (url.endsWith('/collections')) return Response.json([]);
+      if (url.endsWith('/models/model-1/exports') && init?.method === 'POST')
+        return Response.json({
+          id: 'export-1',
+          kind: 'export',
+          state: 'succeeded',
+          sourceModelId: 'model-1',
+          importedModelId: null,
+          progress: 100,
+          downloadReady: true,
+          error: null,
+          createdAt: '2026-01-02T00:00:00.000Z',
+          updatedAt: '2026-01-02T00:00:01.000Z',
+          completedAt: '2026-01-02T00:00:01.000Z',
+        });
+      return Response.json(detail);
+    });
+    vi.stubGlobal('fetch', fetch);
+    const queryClient = client();
+    queryClient.setQueryData(sessionQueryKey, {
+      authenticated: true,
+      setupRequired: false,
+      owner: { id: 'owner-1', username: 'Owner' },
+      csrfToken: 'csrf-session',
+      expiresAt: '2099-01-01T00:00:00.000Z',
+    });
+    renderPage(<ModelPage />, queryClient, '/catalogue/models/model-1');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Prepare export' }));
+    const download = await screen.findByRole('link', { name: 'Download Yuki package' });
+    expect(download).toHaveAttribute('href', '/api/v1/catalogue/portability/export-1/download');
+    const exportRequest = fetch.mock.calls.find(([url]) =>
+      String(url).endsWith('/models/model-1/exports'),
+    );
+    expect(exportRequest?.[1]?.method).toBe('POST');
+    const headers = new Headers(exportRequest?.[1]?.headers);
+    expect(headers.get('x-csrf-token')).toBe('csrf-session');
+    expect(headers.get('idempotency-key')).toBeTruthy();
   });
 
   it('requests preview generation from the current model version', async () => {

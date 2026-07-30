@@ -50,6 +50,9 @@ export interface LocalImportSession {
 export interface UploadLocalImportInput {
   readonly file: File;
   readonly modelName: string;
+  readonly targetModelId?: string;
+  readonly versionLabel?: string;
+  readonly changeNote?: string;
   readonly csrfToken: string;
   readonly idempotencyKey: string;
   readonly signal?: AbortSignal;
@@ -59,7 +62,12 @@ export interface UploadLocalImportInput {
 export function uploadLocalImport(input: UploadLocalImportInput): Promise<LocalImportSession> {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open('POST', '/api/v1/imports/local');
+    request.open(
+      'POST',
+      input.targetModelId
+        ? `/api/v1/catalogue/models/${encodeURIComponent(input.targetModelId)}/versions/import`
+        : '/api/v1/imports/local',
+    );
     request.withCredentials = true;
     request.responseType = 'json';
     request.setRequestHeader('content-type', 'application/octet-stream');
@@ -67,7 +75,16 @@ export function uploadLocalImport(input: UploadLocalImportInput): Promise<LocalI
     request.setRequestHeader('x-csrf-token', input.csrfToken);
     request.setRequestHeader('x-yuki-value-encoding', 'percent');
     request.setRequestHeader('x-yuki-filename', encodeURIComponent(input.file.name));
-    request.setRequestHeader('x-yuki-model-name', encodeURIComponent(input.modelName.trim()));
+    if (input.targetModelId) {
+      request.setRequestHeader(
+        'x-yuki-version-label',
+        encodeURIComponent(input.versionLabel ?? ''),
+      );
+      if (input.changeNote?.trim())
+        request.setRequestHeader('x-yuki-change-note', encodeURIComponent(input.changeNote.trim()));
+    } else {
+      request.setRequestHeader('x-yuki-model-name', encodeURIComponent(input.modelName.trim()));
+    }
     request.setRequestHeader('idempotency-key', input.idempotencyKey);
     request.upload.addEventListener('progress', (event) => {
       input.onProgress?.(event.loaded, event.lengthComputable ? event.total : input.file.size);

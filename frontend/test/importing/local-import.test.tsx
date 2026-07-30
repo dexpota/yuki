@@ -101,9 +101,52 @@ describe('manual import API', () => {
     expect(request.headers.get('x-yuki-model-name')).toBe('Caf%C3%A9%20prototype');
     expect(progress).toHaveBeenCalledWith(file.size, file.size);
   });
+
+  it('streams a new immutable version to the model-specific endpoint', async () => {
+    const file = new File(['solid model v2'], 'model-v2.stl', { type: 'model/stl' });
+    const promise = uploadLocalImport({
+      file,
+      modelName: 'Benchy',
+      targetModelId: 'model/1',
+      versionLabel: 'v2',
+      changeNote: 'Stronger bow',
+      csrfToken: 'csrf-token',
+      idempotencyKey: 'idempotency-2',
+    });
+    const request = requiredRequest();
+    request.complete(202, session({ state: 'queued' }));
+
+    await expect(promise).resolves.toMatchObject({ state: 'queued' });
+    expect(request.url).toBe('/api/v1/catalogue/models/model%2F1/versions/import');
+    expect(request.headers.get('x-yuki-model-name')).toBeUndefined();
+    expect(request.headers.get('x-yuki-version-label')).toBe('v2');
+    expect(request.headers.get('x-yuki-change-note')).toBe('Stronger%20bow');
+  });
 });
 
 describe('manual import page', () => {
+  it('collects version metadata when opened from a model', async () => {
+    const view = renderPage('/import?modelId=model-1&modelName=Benchy');
+    expect(
+      screen.getByRole('heading', { name: 'Add a version to Benchy', level: 1 }),
+    ).toBeVisible();
+    const file = new File(['solid model v2'], 'benchy-v2.stl', { type: 'model/stl' });
+    fireEvent.change(requiredFileInput(view.container), { target: { files: [file] } });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Version label' }), {
+      target: { value: 'v2' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Change note' }), {
+      target: { value: 'Stronger bow' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Upload new version' }));
+    await waitFor(() => expect(FakeXmlHttpRequest.instances).toHaveLength(1));
+
+    const request = requiredRequest();
+    expect(request.url).toBe('/api/v1/catalogue/models/model-1/versions/import');
+    expect(request.headers.get('x-yuki-version-label')).toBe('v2');
+    expect(request.headers.get('x-yuki-change-note')).toBe('Stronger%20bow');
+  });
+
   it('clears the native picker so the same file can be selected for another import', async () => {
     const view = renderPage();
     const input = requiredFileInput(view.container);
@@ -217,15 +260,53 @@ describe('manual import page', () => {
     expect(modelLink).toHaveAttribute('href', '/catalogue/models/model-1');
     await waitFor(() => expect(duplicatesKept).toBe(true));
   });
+
+  it('re-imports a portable Yuki package and links to the recreated model', async () => {
+    const fetch = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+      Response.json({
+        id: 'import-operation-1',
+        kind: 'import',
+        state: 'succeeded',
+        sourceModelId: null,
+        importedModelId: 'model-copy',
+        progress: 100,
+        downloadReady: false,
+        error: null,
+        createdAt: '2026-07-23T10:00:00.000Z',
+        updatedAt: '2026-07-23T10:00:01.000Z',
+        completedAt: '2026-07-23T10:00:01.000Z',
+      }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    renderPage();
+    const file = new File(['portable package'], 'benchy.yuki.zip', {
+      type: 'application/vnd.yuki.model+zip',
+    });
+    fireEvent.change(screen.getByLabelText('Yuki export package'), {
+      target: { files: [file] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Re-import package' }));
+
+    expect(await screen.findByRole('link', { name: 'View re-imported model' })).toHaveAttribute(
+      'href',
+      '/catalogue/models/model-copy',
+    );
+    const [, init] = fetch.mock.calls[0] ?? [];
+    expect(init?.method).toBe('POST');
+    expect(init?.body).toBe(file);
+    const headers = new Headers(init?.headers);
+    expect(headers.get('content-type')).toBe('application/vnd.yuki.model+zip');
+    expect(headers.get('x-csrf-token')).toBe('csrf-token');
+  });
 });
 
-function renderPage() {
+function renderPage(path = '/import') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/import']}>
+      <MemoryRouter initialEntries={[path]}>
         <LocalImportPage csrfToken="csrf-token" />
       </MemoryRouter>
     </QueryClientProvider>,

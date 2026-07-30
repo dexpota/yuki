@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { type DragEvent, type FormEvent, useRef, useState } from 'react';
-import { Link } from 'react-router';
+import { type DragEvent, type FormEvent, useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router';
 
+import { getPortabilityOperation, importPortableModel } from '../../catalogue/api.js';
 import { ApiError } from '../../shared/api/http.js';
 import {
   getLocalImport,
@@ -14,9 +15,15 @@ import './local-import.css';
 
 export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const targetModelId = searchParams.get('modelId')?.trim() || null;
+  const targetModelName = searchParams.get('modelName')?.trim() || 'this model';
+  const addingVersion = targetModelId !== null;
   const [file, setFile] = useState<File | null>(null);
-  const [modelName, setModelName] = useState('');
+  const [modelName, setModelName] = useState(addingVersion ? targetModelName : '');
   const [modelNameEdited, setModelNameEdited] = useState(false);
+  const [versionLabel, setVersionLabel] = useState('');
+  const [changeNote, setChangeNote] = useState('');
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -32,19 +39,42 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
     enabled: sessionId !== null,
     refetchInterval: (query) => (shouldPoll(query.state.data) ? 1_000 : false),
   });
+  useEffect(() => {
+    if (session.data?.state !== 'succeeded' || !session.data.modelId) return;
+    void queryClient.invalidateQueries({ queryKey: ['catalogue', 'browse'] });
+    void queryClient.invalidateQueries({
+      queryKey: ['catalogue', 'model', session.data.modelId],
+    });
+  }, [queryClient, session.data]);
   const upload = useMutation({
     mutationFn: async () => {
-      if (!file || !modelName.trim()) throw new TypeError('Choose a file and enter a model name.');
+      if (!file || (!addingVersion && !modelName.trim()) || (addingVersion && !versionLabel.trim()))
+        throw new TypeError('Choose a file and complete the required details.');
       const controller = new AbortController();
       cancellation.current = controller;
       setUploadProgress(0);
-      const signature = [file.name, file.size, file.lastModified, modelName.trim()].join('\u0000');
+      const signature = [
+        file.name,
+        file.size,
+        file.lastModified,
+        modelName.trim(),
+        targetModelId ?? '',
+        versionLabel.trim(),
+        changeNote.trim(),
+      ].join('\u0000');
       if (lastUpload.current?.signature !== signature)
         lastUpload.current = { signature, idempotencyKey: crypto.randomUUID() };
       try {
         return await uploadLocalImport({
           file,
           modelName,
+          ...(targetModelId
+            ? {
+                targetModelId,
+                versionLabel: versionLabel.trim(),
+                changeNote: changeNote.trim(),
+              }
+            : {}),
           csrfToken,
           idempotencyKey: lastUpload.current.idempotencyKey,
           signal: controller.signal,
@@ -58,7 +88,6 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
     onSuccess: (created) => {
       setSessionId(created.id);
       queryClient.setQueryData(['imports', 'local', created.id], created);
-      void queryClient.invalidateQueries({ queryKey: ['catalogue', 'browse'] });
     },
   });
   const duplicateFiles =
@@ -83,7 +112,8 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
     if (fileInput.current) fileInput.current.value = '';
     upload.reset();
     duplicates.reset();
-    if (!modelNameEdited || !modelName.trim()) setModelName(nameFrom(next.name));
+    if (!addingVersion && (!modelNameEdited || !modelName.trim()))
+      setModelName(nameFrom(next.name));
   };
   const drop = (event: DragEvent<HTMLLabelElement>) => {
     event.preventDefault();
@@ -97,8 +127,10 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
   };
   const startAnother = () => {
     setFile(null);
-    setModelName('');
+    setModelName(addingVersion ? targetModelName : '');
     setModelNameEdited(false);
+    setVersionLabel('');
+    setChangeNote('');
     setSessionId(null);
     setUploadProgress(0);
     lastUpload.current = null;
@@ -111,10 +143,15 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
       <header className="local-import-heading">
         <div>
           <p className="eyebrow">Manual import</p>
-          <h1>Add a model</h1>
-          <p>Upload a model file or ZIP archive. Original bytes are always retained.</p>
+          <h1>{addingVersion ? `Add a version to ${targetModelName}` : 'Add a model'}</h1>
+          <p>
+            Upload a model file or ZIP archive. Original bytes are always retained
+            {addingVersion ? ' and earlier versions remain available.' : '.'}
+          </p>
         </div>
-        <Link to="/">Return to catalogue</Link>
+        <Link to={targetModelId ? `/catalogue/models/${targetModelId}` : '/'}>
+          {addingVersion ? 'Return to model' : 'Return to catalogue'}
+        </Link>
       </header>
 
       <form className="local-import-form" onSubmit={submit}>
@@ -147,22 +184,58 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
               : 'STL, 3MF, OBJ, STEP, G-code, or ZIP'}
           </span>
         </label>
-        <label className="form-field">
-          <span>Model name</span>
-          <input
-            required
-            maxLength={300}
-            value={modelName}
-            disabled={upload.isPending}
-            onChange={(event) => {
-              setModelNameEdited(true);
-              setModelName(event.target.value);
-            }}
-          />
-        </label>
+        {addingVersion ? (
+          <>
+            <label className="form-field">
+              <span>Version label</span>
+              <input
+                required
+                maxLength={100}
+                value={versionLabel}
+                disabled={upload.isPending}
+                onChange={(event) => setVersionLabel(event.target.value)}
+              />
+            </label>
+            <label className="form-field">
+              <span>Change note</span>
+              <textarea
+                maxLength={20_000}
+                value={changeNote}
+                disabled={upload.isPending}
+                onChange={(event) => setChangeNote(event.target.value)}
+              />
+            </label>
+          </>
+        ) : (
+          <label className="form-field">
+            <span>Model name</span>
+            <input
+              required
+              maxLength={300}
+              value={modelName}
+              disabled={upload.isPending}
+              onChange={(event) => {
+                setModelNameEdited(true);
+                setModelName(event.target.value);
+              }}
+            />
+          </label>
+        )}
         <div className="import-actions">
-          <button type="submit" disabled={!file || !modelName.trim() || upload.isPending}>
-            {upload.isPending ? 'Uploading…' : 'Upload and import'}
+          <button
+            type="submit"
+            disabled={
+              !file ||
+              (!addingVersion && !modelName.trim()) ||
+              (addingVersion && !versionLabel.trim()) ||
+              upload.isPending
+            }
+          >
+            {upload.isPending
+              ? 'Uploading…'
+              : addingVersion
+                ? 'Upload new version'
+                : 'Upload and import'}
           </button>
           {upload.isPending ? (
             <button
@@ -174,11 +247,16 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
             </button>
           ) : null}
           {!file ? <span className="import-action-help">Choose a file to continue.</span> : null}
-          {file && !modelName.trim() ? (
+          {file && !addingVersion && !modelName.trim() ? (
             <span className="import-action-help">Enter a model name to continue.</span>
+          ) : null}
+          {file && addingVersion && !versionLabel.trim() ? (
+            <span className="import-action-help">Enter a version label to continue.</span>
           ) : null}
         </div>
       </form>
+
+      {!addingVersion ? <PortableImport csrfToken={csrfToken} /> : null}
 
       {upload.isPending ? (
         <ImportProgress value={uploadProgress} label="Uploading original file…" />
@@ -198,6 +276,72 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
           onKeepDuplicates={() => duplicates.mutate()}
           onStartAnother={startAnother}
         />
+      ) : null}
+    </section>
+  );
+}
+
+function PortableImport({ csrfToken }: { readonly csrfToken: string }) {
+  const queryClient = useQueryClient();
+  const [file, setFile] = useState<File | null>(null);
+  const [operationId, setOperationId] = useState<string | null>(null);
+  const operationKey = ['catalogue', 'portability', operationId] as const;
+  const operation = useQuery({
+    queryKey: operationKey,
+    queryFn: () => getPortabilityOperation(requiredOperationId(operationId)),
+    enabled: operationId !== null,
+    refetchInterval: (query) =>
+      query.state.data?.state === 'queued' || query.state.data?.state === 'running' ? 1_000 : false,
+  });
+  const upload = useMutation({
+    mutationFn: () => {
+      if (!file) throw new TypeError('Choose a Yuki export package.');
+      return importPortableModel(file, csrfToken);
+    },
+    onSuccess: (created) => {
+      setOperationId(created.id);
+      queryClient.setQueryData(['catalogue', 'portability', created.id], created);
+    },
+  });
+  const result = operation.data;
+
+  return (
+    <section className="portable-import">
+      <div>
+        <p className="eyebrow">Yuki portability</p>
+        <h2>Re-import an exported model</h2>
+        <p>Versions, assets, metadata, generated previews, and print history are preserved.</p>
+      </div>
+      <label className="form-field">
+        <span>Yuki export package</span>
+        <input
+          type="file"
+          accept=".zip,application/vnd.yuki.model+zip"
+          disabled={upload.isPending || result?.state === 'queued' || result?.state === 'running'}
+          onChange={(event) => {
+            setFile(event.target.files?.[0] ?? null);
+            setOperationId(null);
+            upload.reset();
+          }}
+        />
+      </label>
+      <button type="button" disabled={!file || upload.isPending} onClick={() => upload.mutate()}>
+        {upload.isPending ? 'Uploading package…' : 'Re-import package'}
+      </button>
+      {result?.state === 'queued' || result?.state === 'running' ? (
+        <p aria-live="polite">Re-importing package… {result.progress}%</p>
+      ) : null}
+      {result?.state === 'succeeded' && result.importedModelId ? (
+        <p className="portable-success">
+          Re-import complete.{' '}
+          <Link to={`/catalogue/models/${result.importedModelId}`}>View re-imported model</Link>
+        </p>
+      ) : null}
+      {result?.state === 'failed' ? (
+        <p role="alert">{result.error?.message ?? 'The export package could not be imported.'}</p>
+      ) : null}
+      {upload.isError || operation.isError ? (
+        <p role="alert">The export package could not be imported. Check the file and try again.</p>
       ) : null}
     </section>
   );
@@ -373,6 +517,11 @@ function nameFrom(filename: string): string {
 
 function requiredSessionId(value: string | null): string {
   if (!value) throw new Error('Import session is unavailable.');
+  return value;
+}
+
+function requiredOperationId(value: string | null): string {
+  if (!value) throw new Error('Portability operation is unavailable.');
   return value;
 }
 

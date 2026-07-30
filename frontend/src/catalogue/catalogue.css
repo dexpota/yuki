@@ -191,6 +191,17 @@
   margin-top: 0;
 }
 
+.catalogue-panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.catalogue-panel-heading h2 {
+  margin: 0;
+}
+
 .preview-panel,
 .asset-previews,
 .asset-preview {
@@ -319,4 +330,8 @@
 .catalogue-error {
   color: #ffd8d4;
   font-size: 0.9rem;
+}
+
+.catalogue-success {
+  color: #b9f6cd;
 }
