@@ -176,7 +176,9 @@ worker, and bridge never receive `/var/run/docker.sock`. The supervisor resolves
 the locally built processor to its immutable image ID before invoking it. See
 `docs/ADR-0003-import-processor-deployment.md` for the security boundary.
 
-The `postgres_data` and `storage_data` named volumes are the default durable
+The PostgreSQL service accepts password-authenticated SCRAM connections from
+the internal Compose data network. It does not publish a host port. The
+`postgres_data` and `storage_data` named volumes are the default durable
 application state. `proxy_data` and `proxy_config` retain Caddy state. The
 `application` and `data` networks are internal. The API and worker also join the
 unprivileged `outbound` network so configured OctoPrint, S3, and webhook

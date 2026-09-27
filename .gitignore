@@ -6,6 +6,7 @@ acceptance/.auth/
 acceptance/playwright-report/
 acceptance/test-results/
 .DS_Store
+.impeccable/
 *.log
 .env
 .env.*

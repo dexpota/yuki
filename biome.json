@@ -5,6 +5,7 @@
       "!!**/dist",
       "!!**/coverage",
       "!!**/node_modules",
+      "!!**/.impeccable",
       "!!acceptance/.auth",
       "!!acceptance/playwright-report",
       "!!acceptance/test-results"

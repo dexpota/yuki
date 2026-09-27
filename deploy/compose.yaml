@@ -54,6 +54,7 @@ services:
       POSTGRES_DB: ${YUKI_POSTGRES_DB:-yuki}
       POSTGRES_USER: ${YUKI_POSTGRES_USER:-yuki}
       POSTGRES_PASSWORD: ${YUKI_POSTGRES_PASSWORD:-yuki-development-only}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
     networks:
       - data
     volumes:
