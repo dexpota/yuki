@@ -49,15 +49,15 @@
   grid-template-columns: auto 1fr;
   gap: 1rem;
   padding: 1.25rem;
-  background: #16211c;
-  border: 1px solid #35433b;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 0.7rem;
 }
 
 .notification-card.unread {
-  background: #1b2b23;
-  border-color: #76b88e;
-  box-shadow: inset 0.2rem 0 #9ee2b7;
+  background: var(--blue-wash);
+  border-color: var(--blue);
+  box-shadow: none;
 }
 
 .notification-icon {
@@ -65,8 +65,8 @@
   place-items: center;
   width: 2.3rem;
   height: 2.3rem;
-  color: #0b1911;
-  background: #9ee2b7;
+  color: var(--paper);
+  background: var(--ink);
   border-radius: 50%;
   font-size: 1.1rem;
   font-weight: 900;
@@ -74,13 +74,15 @@
 
 .notification-print_failed,
 .notification-printer_disconnected {
-  color: #351410;
-  background: #ffb4ab;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
 }
 
 .notification-print_cancelled {
-  color: #3a2b08;
-  background: #ffe7ad;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
 }
 
 .notification-title-row {
@@ -103,8 +105,8 @@
   min-width: 1.35rem;
   min-height: 1.35rem;
   padding: 0.1rem 0.35rem;
-  color: #0b1911;
-  background: #9ee2b7;
+  color: var(--paper);
+  background: var(--ink);
   border-radius: 999px;
   font-size: 0.7rem;
   font-weight: 900;
@@ -112,16 +114,16 @@
 
 .notification-meta {
   justify-content: flex-start;
-  color: #9da9a1;
+  color: var(--muted);
   font-size: 0.85rem;
 }
 
 .notification-read-button {
   margin-top: 0.9rem;
   padding: 0.45rem 0.7rem;
-  color: #e8eee9;
+  color: var(--ink);
   background: transparent;
-  border: 1px solid #536259;
+  border: 1px solid var(--line-strong);
 }
 
 .notification-error,
@@ -132,14 +134,14 @@
 }
 
 .notification-error {
-  color: #ffd8d4;
-  background: #542622;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
 }
 
 .notification-status,
 .notifications-empty {
-  background: #16211c;
-  border: 1px solid #35433b;
+  background: var(--surface);
+  border: 1px solid var(--line);
 }
 
 .notifications-empty h2 {
@@ -159,4 +161,92 @@
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+
+.notifications-page {
+  gap: 1.25rem;
+}
+.notifications-heading h1 {
+  font-size: clamp(2.1rem, 3.2vw, 3rem);
+}
+.notification-list {
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+.notification-card {
+  padding: 1rem 0.75rem;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.notification-card.unread {
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
+}
+.notification-icon {
+  width: 2rem;
+  height: 2rem;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+}
+.notification-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.notification-print_failed,
+.notification-printer_disconnected {
+  color: var(--danger-ink);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
+.notification-print_cancelled {
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+.unread-label {
+  min-height: 22px;
+  padding: 0.15rem 0.45rem;
+  color: var(--ink);
+  background: var(--blue-wash);
+  border: 1px solid var(--blue);
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+.notification-read-button {
+  min-height: 36px;
+  margin-top: 0.6rem;
+  border-radius: 3px;
+}
+.notification-summary {
+  margin: 0;
+}
+.notifications-empty,
+.notification-status {
+  border-radius: 4px;
+}
+
+@media (max-width: 600px) {
+  .notifications-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .notification-heading-actions {
+    width: 100%;
+    flex-wrap: wrap;
+    align-self: auto;
+  }
+  .notification-card {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
 }

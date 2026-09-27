@@ -54,7 +54,6 @@ export function InstallationSettingsPage({ csrfToken }: { readonly csrfToken: st
   return (
     <main className="settings-page">
       <header>
-        <p className="eyebrow">Installation</p>
         <h1>Settings</h1>
         <p>Resource limits and retention rules for this Yuki installation.</p>
       </header>
@@ -146,9 +145,11 @@ export function InstallationSettingsPage({ csrfToken }: { readonly csrfToken: st
         </section>
         {mutation.error ? <p role="alert">{errorMessage(mutation.error)}</p> : null}
         {mutation.isSuccess ? <p role="status">Settings saved.</p> : null}
-        <button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Saving…' : 'Save settings'}
-        </button>
+        <div className="settings-actions">
+          <button type="submit" disabled={mutation.isPending}>
+            {mutation.isPending ? 'Saving…' : 'Save settings'}
+          </button>
+        </div>
       </form>
       <NotificationWebhookSettings csrfToken={csrfToken} />
     </main>
@@ -264,9 +265,11 @@ function NotificationWebhookSettings({ csrfToken }: { readonly csrfToken: string
       ) : null}
       {mutation.error ? <p role="alert">{webhookErrorMessage(mutation.error)}</p> : null}
       {mutation.isSuccess ? <p role="status">Webhook settings saved.</p> : null}
-      <button type="submit" disabled={mutation.isPending}>
-        {mutation.isPending ? 'Saving webhook…' : 'Save webhook'}
-      </button>
+      <div className="settings-actions">
+        <button type="submit" disabled={mutation.isPending}>
+          {mutation.isPending ? 'Saving webhook…' : 'Save webhook'}
+        </button>
+      </div>
       <div className="delivery-diagnostics">
         <h3>Recent delivery diagnostics</h3>
         {deliveries.data?.deliveries.length ? (

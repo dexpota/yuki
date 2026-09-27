@@ -82,6 +82,12 @@ integration('catalogue indexed search', () => {
       items: [
         {
           name: 'Model 42',
+          currentVersionLabel: 'v1',
+          fileSummary: {
+            filename: 'singular-filename-token.stl',
+            format: 'stl',
+            count: 1,
+          },
           thumbnail: {
             status: 'ready',
             downloadUrl: expect.stringContaining('/api/v1/catalogue/previews/'),

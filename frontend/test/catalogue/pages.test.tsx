@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Link, MemoryRouter, Route, Routes, useLocation } from 'react-router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CataloguePage, ModelPage } from '../../src/catalogue/index.js';
@@ -51,7 +51,12 @@ describe('catalogue pages', () => {
     expect(screen.getByRole('img', { name: 'Thumbnail is being generated' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Thumbnail generation failed' })).toBeInTheDocument();
     expect(screen.getByRole('img', { name: 'Thumbnail is unsupported' })).toBeInTheDocument();
+    expect(screen.getByText('Generating preview')).toBeInTheDocument();
+    expect(screen.getByText('Preview failed')).toBeInTheDocument();
+    expect(screen.getByText('Preview unavailable')).toBeInTheDocument();
     expect(screen.getAllByRole('img', { name: 'Thumbnail unavailable' })).toHaveLength(46);
+    expect(screen.getAllByText('model-1.stl')).toHaveLength(1);
+    expect(screen.getAllByText('v1')).toHaveLength(50);
     expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled();
     expect(fetch).toHaveBeenCalledTimes(3);
   });
@@ -72,10 +77,10 @@ describe('catalogue pages', () => {
     renderPage(<CataloguePage />);
 
     expect(await screen.findByRole('link', { name: /Benchy/ })).toBeInTheDocument();
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search' }), {
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search catalogue' }), {
       target: { value: 'boat' },
     });
-    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Search' }));
     await waitFor(() =>
       expect(
         fetch.mock.calls.some(
@@ -90,6 +95,86 @@ describe('catalogue pages', () => {
         ([url]) => new URL(String(url), 'http://yuki').searchParams.get('cursor') === 'page-2',
       ),
     ).toBe(true);
+  });
+
+  it('applies sort immediately and restores catalogue state from the URL', async () => {
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/tags')) return Response.json([]);
+      if (url.endsWith('/collections'))
+        return Response.json([{ id: 'collection-1', name: 'Collection one' }]);
+      return Response.json({ items: [item('model-1', 'Benchy')], nextCursor: null });
+    });
+    vi.stubGlobal('fetch', fetch);
+    renderPage(
+      <>
+        <Link to="/">Catalogue home</Link>
+        <LocationProbe />
+        <CataloguePage />
+      </>,
+      client(),
+      '/?collectionId=collection-1&q=boat&sort=name&direction=asc',
+    );
+
+    expect(await screen.findByRole('link', { name: /Benchy/ })).toBeInTheDocument();
+    expect(screen.getByRole('searchbox', { name: 'Search catalogue' })).toHaveValue('boat');
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('name');
+    expect(screen.getByRole('combobox', { name: 'Collection' })).toHaveValue('collection-1');
+    fireEvent.change(screen.getByRole('combobox', { name: 'Sort' }), {
+      target: { value: 'printCount' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('sort=printCount'),
+    );
+    expect(screen.getByTestId('location')).toHaveTextContent('q=boat');
+    fireEvent.click(screen.getByRole('link', { name: 'Catalogue home' }));
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(/^\/$/));
+    expect(screen.getByRole('searchbox', { name: 'Search catalogue' })).toHaveValue('');
+    expect(screen.getByRole('combobox', { name: 'Sort' })).toHaveValue('updatedAt');
+    expect(screen.getByRole('button', { name: 'Filters' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    );
+    expect(screen.getByRole('combobox', { name: 'Collection' })).toHaveValue('');
+  });
+
+  it('keeps advanced filters behind a separate disclosure', async () => {
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/tags') || url.endsWith('/collections')) return Response.json([]);
+      return Response.json({ items: [item('model-1', 'Benchy')], nextCursor: null });
+    });
+    vi.stubGlobal('fetch', fetch);
+    renderPage(<CataloguePage />);
+    expect(await screen.findByRole('link', { name: /Benchy/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    expect(screen.getByRole('combobox', { name: 'Favorite' })).toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Source' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    expect(screen.getByRole('combobox', { name: 'Source' })).toBeInTheDocument();
+  });
+
+  it('offers a retry when tag filters cannot load', async () => {
+    let tagRequests = 0;
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.endsWith('/tags')) {
+        tagRequests += 1;
+        return tagRequests === 1
+          ? Response.json({ error: 'unavailable' }, { status: 503 })
+          : Response.json([{ id: 'tag-1', name: 'Workshop' }]);
+      }
+      if (url.endsWith('/collections')) return Response.json([]);
+      return Response.json({ items: [item('model-1', 'Benchy')], nextCursor: null });
+    });
+    vi.stubGlobal('fetch', fetch);
+    renderPage(<CataloguePage />);
+    expect(await screen.findByRole('link', { name: /Benchy/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Filters' }));
+    fireEvent.click(screen.getByRole('button', { name: 'More options' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry tags' }));
+    expect(await screen.findByRole('option', { name: 'Workshop' })).toBeInTheDocument();
+    expect(tagRequests).toBe(2);
   });
 
   it('edits metadata and restores an immutable version', async () => {
@@ -286,6 +371,11 @@ function renderPage(node: React.ReactNode, queryClient = client(), path = '/') {
   );
 }
 
+function LocationProbe() {
+  const location = useLocation();
+  return <span data-testid="location">{`${location.pathname}${location.search}`}</span>;
+}
+
 function client() {
   return new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -309,6 +399,8 @@ function item(
     importSource: 'upload',
     favorite: false,
     currentVersionId: 'version-2',
+    currentVersionLabel: 'v1',
+    fileSummary: { filename: `${id}.stl`, format: 'stl', count: 1 },
     coverAssetId: null,
     thumbnail,
     printCount: 0,

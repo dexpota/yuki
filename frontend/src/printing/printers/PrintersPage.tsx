@@ -49,7 +49,6 @@ export function PrintersPage() {
     <section className="printers-page">
       <header className="printers-heading">
         <div>
-          <p className="eyebrow">Printing</p>
           <h1>Printers</h1>
           <p>Configure OctoPrint endpoints, inspect live state, and manage each print queue.</p>
         </div>
@@ -104,7 +103,6 @@ export function PrinterDetailPage() {
   if (printer === undefined)
     return (
       <section className="route-message">
-        <p className="eyebrow">Printing</p>
         <h1>Printer not found</h1>
         <Link to="/printers">Return to printers</Link>
       </section>
@@ -113,8 +111,7 @@ export function PrinterDetailPage() {
     <section className="printer-detail">
       <header className="printer-detail-heading">
         <div>
-          <Link to="/printers">← All printers</Link>
-          <p className="eyebrow">Printer workspace</p>
+          <Link to="/printers">All printers</Link>
           <h1>{printer.displayName}</h1>
         </div>
         <button type="button" onClick={() => setEditing((current) => !current)}>
@@ -804,7 +801,6 @@ function Confirmation({
         aria-modal="true"
         aria-labelledby="confirmation-title"
       >
-        <p className="eyebrow">Physical action</p>
         <h2 id="confirmation-title">{title}</h2>
         <p>{notice}</p>
         {details.map((detail) => (

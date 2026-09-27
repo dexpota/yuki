@@ -25,7 +25,6 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
     if (this.state.error) {
       return (
         <main className="fatal-error" role="alert">
-          <p className="eyebrow">Application error</p>
           <h1>Yuki could not continue</h1>
           <p>Reload the page to try again. Your catalogue data has not been changed.</p>
           <button type="button" onClick={() => window.location.reload()}>

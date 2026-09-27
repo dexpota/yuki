@@ -28,17 +28,17 @@
   display: grid;
   gap: 1.25rem;
   padding: 1.5rem;
-  background: #16211c;
-  border: 1px solid #35433b;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 0.8rem;
 }
 
 .local-import-form textarea {
   min-height: 6rem;
   padding: 0.75rem 0.85rem;
-  color: #e8eee9;
-  background: #101714;
-  border: 1px solid #415047;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line-strong);
   border-radius: 0.4rem;
   font: inherit;
   resize: vertical;
@@ -59,7 +59,7 @@
 
 .portable-success {
   grid-column: 1 / -1;
-  color: #b9f6cd;
+  color: var(--success-ink);
 }
 
 .local-import-form {
@@ -74,18 +74,18 @@
   place-content: center;
   gap: 0.5rem;
   padding: 2rem;
-  color: #9da9a1;
+  color: var(--muted);
   text-align: center;
-  background: #101714;
-  border: 2px dashed #536259;
+  background: var(--paper);
+  border: 2px dashed var(--line-strong);
   border-radius: 0.7rem;
   cursor: pointer;
 }
 
 .import-drop-zone:hover,
 .import-drop-zone.is-dragging {
-  background: #15291e;
-  border-color: #9ee2b7;
+  background: var(--success-bg);
+  border-color: var(--ink);
 }
 
 .import-drop-zone input {
@@ -99,7 +99,7 @@
 }
 
 .import-drop-title {
-  color: #e8eee9;
+  color: var(--ink);
   font-size: 1.15rem;
   font-weight: 800;
 }
@@ -115,7 +115,7 @@
 }
 
 .import-action-help {
-  color: #9da9a1;
+  color: var(--muted);
   font-size: 0.85rem;
 }
 
@@ -123,8 +123,8 @@
 .import-problem,
 .duplicate-decision {
   padding: 1.25rem;
-  background: #16211c;
-  border: 1px solid #35433b;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 0.7rem;
 }
 
@@ -142,22 +142,22 @@
 .import-progress progress {
   width: 100%;
   height: 0.8rem;
-  accent-color: #9ee2b7;
+  accent-color: var(--ink);
 }
 
 .import-problem {
-  color: #ffd8d4;
-  background: #542622;
-  border-color: #754039;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
 }
 
 .import-problem p {
-  color: #ffd8d4;
+  color: var(--danger-ink);
 }
 
 .duplicate-decision {
-  background: #3a3218;
-  border-color: #75652c;
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
 }
 
 .duplicate-decision h3 {
@@ -182,20 +182,20 @@
 .state-receiving,
 .state-queued,
 .state-processing {
-  color: #ffe7ad;
-  background: #4a3b15;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
 }
 
 .state-succeeded,
 .file-accepted {
-  color: #b9f6cd;
-  background: #203d2c;
+  color: var(--success-ink);
+  background: var(--success-bg);
 }
 
 .state-failed,
 .file-failed {
-  color: #ffd8d4;
-  background: #542622;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
 }
 
 .import-files {
@@ -211,8 +211,8 @@
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.35rem 1rem;
   padding: 1rem;
-  background: #101714;
-  border: 1px solid #35433b;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-radius: 0.6rem;
 }
 
@@ -223,7 +223,7 @@
 
 .import-files li > div span,
 .file-note {
-  color: #9da9a1;
+  color: var(--muted);
   font-size: 0.85rem;
 }
 
@@ -235,20 +235,94 @@
 }
 
 .file-warning {
-  color: #ffe7ad;
+  color: var(--warning-ink);
 }
 
 .file-error {
-  color: #ffd8d4;
+  color: var(--danger-ink);
 }
 
 .button-link {
   display: inline-flex;
   align-items: center;
   padding: 0.7rem 1rem;
-  color: #0b1911;
-  background: #9ee2b7;
+  color: var(--paper);
+  background: var(--ink);
   border-radius: 0.4rem;
   font-weight: 700;
   text-decoration: none;
+}
+
+.local-import-page {
+  gap: 1.35rem;
+}
+.local-import-heading {
+  align-items: center;
+}
+.local-import-heading h1 {
+  font-size: clamp(2.1rem, 3.2vw, 3rem);
+}
+.local-import-heading p {
+  margin-bottom: 0;
+}
+.local-import-page > .local-import-form {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 1.2rem;
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: 4px;
+}
+.import-drop-zone {
+  min-height: 16rem;
+  background: var(--surface-alt);
+  border: 1px dashed var(--line-strong);
+  border-radius: 3px;
+}
+.import-drop-zone:hover,
+.import-drop-zone.is-dragging {
+  background: var(--blue-wash);
+  border-color: var(--focus);
+}
+.import-drop-title {
+  font-size: 1.05rem;
+  font-weight: 680;
+}
+.portable-import,
+.import-report {
+  padding: 1.15rem;
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: 4px;
+}
+.import-progress,
+.duplicate-decision,
+.import-problem {
+  border-radius: 4px;
+}
+.import-files li {
+  background: var(--surface-alt);
+  border-radius: 3px;
+}
+.import-state,
+.file-status {
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 860px) {
+  .local-import-form {
+    grid-template-columns: 1fr;
+  }
+  .import-drop-zone {
+    grid-row: auto;
+    min-height: 13rem;
+  }
+  .portable-import {
+    grid-template-columns: 1fr;
+  }
+  .local-import-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }

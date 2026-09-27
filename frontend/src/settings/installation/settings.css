@@ -12,8 +12,8 @@
 }
 .settings-card {
   padding: 1.4rem;
-  background: #16211c;
-  border: 1px solid #35433b;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 0.75rem;
 }
 .settings-card h2 {
@@ -27,7 +27,7 @@
 .settings-field {
   display: grid;
   gap: 0.4rem;
-  color: #dce5df;
+  color: var(--ink);
   font-weight: 650;
 }
 .settings-summary h2:not(:first-child) {
@@ -51,6 +51,56 @@
 }
 .delivery-diagnostics li + li {
   margin-top: 0.5rem;
+}
+.settings-page {
+  width: 100%;
+  max-width: 76rem;
+  margin: 0;
+  padding: 0;
+}
+.settings-page h1 {
+  font-size: clamp(2.1rem, 3.2vw, 3rem);
+}
+.settings-page > header {
+  margin-bottom: 1.2rem;
+}
+.settings-page > form {
+  gap: 0.8rem;
+}
+.settings-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+.settings-card {
+  padding: 1.2rem;
+  background: var(--surface);
+  border-radius: 4px;
+}
+.settings-card h2 {
+  margin-bottom: 0.9rem;
+}
+.settings-grid {
+  gap: 0.85rem 1rem;
+}
+.settings-field {
+  color: var(--ink);
+}
+.settings-check {
+  display: flex;
+  gap: 0.65rem;
+}
+.settings-check input {
+  width: 1.1rem;
+  min-height: 1.1rem;
+  height: 1.1rem;
+  accent-color: var(--ink);
+}
+.notification-settings {
+  margin-top: 0;
+}
+.delivery-diagnostics {
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
 }
 @media (max-width: 700px) {
   .settings-page {

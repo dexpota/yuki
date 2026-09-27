@@ -68,7 +68,6 @@ export function SessionGate() {
 function SessionLoading() {
   return (
     <main className="identity-status" aria-busy="true" aria-live="polite">
-      <p className="eyebrow">Yuki</p>
       <h1>Opening your catalogue…</h1>
     </main>
   );
@@ -77,7 +76,6 @@ function SessionLoading() {
 function SessionLoadError({ retry }: { readonly retry: () => void }) {
   return (
     <main className="identity-status" role="alert">
-      <p className="eyebrow">Connection problem</p>
       <h1>Yuki could not check your session.</h1>
       <p>Check that the server is running, then try again.</p>
       <button type="button" onClick={retry}>

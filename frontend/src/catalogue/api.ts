@@ -22,6 +22,12 @@ export interface CatalogueItem {
   readonly importSource: 'upload' | 'yuki_export';
   readonly favorite: boolean;
   readonly currentVersionId: string;
+  readonly currentVersionLabel: string;
+  readonly fileSummary: {
+    readonly filename: string;
+    readonly format: AssetFormat;
+    readonly count: number;
+  } | null;
   readonly coverAssetId: string | null;
   readonly thumbnail: {
     readonly status: 'queued' | 'processing' | 'ready' | 'failed' | 'unsupported' | 'missing';

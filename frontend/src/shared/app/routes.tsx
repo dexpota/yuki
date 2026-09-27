@@ -11,7 +11,6 @@ import { AppShell } from './AppShell.js';
 function NotFoundPage() {
   return (
     <section className="route-message">
-      <p className="eyebrow">404</p>
       <h1>Page not found</h1>
       <Link to="/">Return home</Link>
     </section>
@@ -26,7 +25,6 @@ function RouteErrorPage() {
 
   return (
     <main className="fatal-error" role="alert">
-      <p className="eyebrow">Navigation error</p>
       <h1>Something went wrong</h1>
       <p>{message}</p>
       <Link to="/">Return home</Link>

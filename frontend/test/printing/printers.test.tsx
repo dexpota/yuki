@@ -132,6 +132,8 @@ beforeEach(() => {
         );
       if (path.startsWith('/api/v1/catalogue/models?'))
         return Promise.resolve(Response.json({ items: [], nextCursor: null }));
+      if (path === '/api/v1/catalogue/tags' || path === '/api/v1/catalogue/collections')
+        return Promise.resolve(Response.json([]));
       if (path.endsWith('/start-confirmations'))
         return Promise.resolve(
           Response.json({

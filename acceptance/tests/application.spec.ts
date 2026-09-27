@@ -6,7 +6,7 @@ test('authenticated fixture opens the empty catalogue and core navigation', asyn
   credentials,
 }) => {
   await expect(page.getByText(credentials.username, { exact: true })).toBeVisible();
-  await expect(page.getByText('No models match these filters.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your catalogue is empty.' })).toBeVisible();
 
   await page.getByRole('link', { name: 'Import', exact: true }).click();
   await expect(page).toHaveURL(/\/import$/);
@@ -68,7 +68,7 @@ test('imports, versions, previews, exports, and re-imports a multipart model', a
 
   await page.getByRole('link', { name: 'Catalogue', exact: true }).click();
   await page.getByRole('searchbox', { name: 'Search' }).fill('Release Assembly');
-  await page.getByRole('button', { name: 'Apply filters' }).click();
+  await page.getByRole('button', { name: 'Search', exact: true }).click();
   await page.getByRole('link', { name: /Release Assembly/ }).click();
 
   await page.getByRole('link', { name: 'Add version' }).click();
@@ -147,7 +147,7 @@ test('evaluates independent queues and confirms start, controls, notification, a
   });
   await expect(page.getByRole('heading', { name: 'Print cancelled' })).toBeVisible();
 
-  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await page.getByRole('link', { name: 'Print history', exact: true }).click();
   await expect(page.locator('.outcome-badge', { hasText: 'Successful' })).toBeVisible();
   await expect(page.locator('.outcome-badge', { hasText: 'Cancelled' })).toBeVisible();
   await page.locator('summary', { hasText: 'Edit result' }).first().click();
@@ -177,7 +177,7 @@ test('@post-restart preserves catalogue, queues, and history through restart and
     .first()
     .click();
   await expect(page.locator('.version-list > li')).toHaveCount(2);
-  await page.getByRole('link', { name: 'History', exact: true }).click();
+  await page.getByRole('link', { name: 'Print history', exact: true }).click();
   await page.locator('summary', { hasText: 'Edit result' }).first().click();
   await expect(page.getByRole('textbox', { name: 'Notes' }).first()).toHaveValue(
     'Acceptance print inspected',

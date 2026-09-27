@@ -30,6 +30,8 @@ beforeEach(() => {
     'fetch',
     vi.fn().mockImplementation((input: RequestInfo | URL, init?: RequestInit) => {
       const path = String(input);
+      if (path === '/api/v1/catalogue/tags' || path === '/api/v1/catalogue/collections')
+        return Promise.resolve(Response.json([]));
       if (path.startsWith('/api/v1/notifications?'))
         return Promise.resolve(Response.json({ notifications: [unread], unreadCount: 1 }));
       if (path.endsWith('/read-state') && init?.method === 'PUT')
@@ -71,7 +73,7 @@ describe('in-application notifications', () => {
 
     expect(await screen.findByRole('heading', { name: 'Notifications' })).toBeInTheDocument();
     expect(await screen.findByText('Workshop: cube.gcode')).toBeInTheDocument();
-    expect(screen.getByText('1 unread notifications')).toBeInTheDocument();
+    expect(screen.getByText('1 unread notification')).toBeInTheDocument();
     expect(screen.getByText('1 unread notification.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open printer' })).toHaveAttribute(
       'href',

@@ -38,7 +38,6 @@ export function PrintHistoryPage() {
     <section className="history-page">
       <header className="history-heading">
         <div>
-          <p className="eyebrow">Printing</p>
           <h1>Print history</h1>
           <p>Review attempts across models and printers, including immutable result snapshots.</p>
         </div>

@@ -40,8 +40,8 @@
 .printer-panel,
 .printer-form,
 .printer-empty {
-  background: #16211c;
-  border: 1px solid #35433b;
+  background: var(--surface);
+  border: 1px solid var(--line);
   border-radius: 0.8rem;
 }
 
@@ -50,12 +50,12 @@
   gap: 0.65rem;
   min-height: 9rem;
   padding: 1.4rem;
-  color: #e8eee9;
+  color: var(--ink);
   text-decoration: none;
 }
 
 .printer-card:hover {
-  border-color: #76b88e;
+  border-color: var(--blue);
 }
 
 .printer-card > div {
@@ -67,23 +67,22 @@
 
 .printer-card > span,
 .printer-card small {
-  color: #b9c4bc;
+  color: var(--muted);
 }
 
 .status-dot {
   width: 0.7rem;
   height: 0.7rem;
   border-radius: 50%;
-  background: #8c9890;
+  background: var(--subtle);
 }
 
 .status-online {
-  background: #71d597;
-  box-shadow: 0 0 0.8rem #71d59766;
+  background: var(--success-ink);
 }
 
 .status-offline {
-  background: #f3998e;
+  background: var(--danger-ink);
 }
 
 .printer-empty,
@@ -121,9 +120,9 @@ select,
 textarea {
   width: 100%;
   padding: 0.75rem 0.85rem;
-  color: #e8eee9;
-  background: #16211c;
-  border: 1px solid #415047;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
   border-radius: 0.4rem;
   font: inherit;
 }
@@ -149,12 +148,12 @@ textarea {
 }
 
 .danger-button {
-  color: #ffd8d4;
-  background: #542622;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
 }
 
 .success-notice {
-  color: #9ee2b7;
+  color: var(--ink);
 }
 
 .monitor-layout {
@@ -171,12 +170,12 @@ textarea {
 
 .monitor-stats div {
   padding: 0.8rem;
-  background: #101714;
+  background: var(--paper);
   border-radius: 0.5rem;
 }
 
 .monitor-stats dt {
-  color: #9da9a1;
+  color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -191,7 +190,7 @@ textarea {
   width: 100%;
   height: 0.75rem;
   margin: 0.5rem 0;
-  accent-color: #9ee2b7;
+  accent-color: var(--ink);
 }
 
 .temperature-list {
@@ -207,7 +206,7 @@ textarea {
 .compatibility {
   padding: 0.3rem 0.55rem;
   border-radius: 999px;
-  background: #2a3730;
+  background: var(--line);
   font-size: 0.78rem;
   font-weight: 700;
   text-transform: capitalize;
@@ -215,20 +214,20 @@ textarea {
 
 .freshness-fresh,
 .compatibility-compatible {
-  color: #b9f3cd;
-  background: #1d4930;
+  color: var(--success-ink);
+  background: var(--success-bg);
 }
 
 .freshness-stale,
 .compatibility-warning,
 .compatibility-unknown {
-  color: #ffe7ad;
-  background: #4a3b15;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
 }
 
 .compatibility-incompatible {
-  color: #ffd8d4;
-  background: #542622;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
 }
 
 .stale-warning,
@@ -239,13 +238,13 @@ textarea {
 }
 
 .stale-warning {
-  color: #ffe7ad;
-  background: #4a3b15;
+  color: var(--warning-ink);
+  background: var(--warning-bg);
 }
 
 .queue-error {
-  color: #ffd8d4;
-  background: #542622;
+  color: var(--danger-ink);
+  background: var(--danger-bg);
 }
 
 .webcam-frame {
@@ -254,7 +253,7 @@ textarea {
   gap: 0.75rem;
   overflow: hidden;
   padding: 0.8rem;
-  background: #101714;
+  background: var(--paper);
   border-radius: 0.6rem;
 }
 
@@ -275,7 +274,7 @@ textarea {
   gap: 0.8rem;
   margin-top: 1.5rem;
   padding-top: 1.25rem;
-  border-top: 1px solid #35433b;
+  border-top: 1px solid var(--line);
 }
 
 .control-row {
@@ -298,14 +297,14 @@ textarea {
   gap: 1rem;
   margin: 1.5rem 0;
   padding: 1rem;
-  background: #101714;
+  background: var(--paper);
   border-radius: 0.6rem;
 }
 
 .queue-list > li {
   padding: 1rem;
-  background: #101714;
-  border: 1px solid #2b3731;
+  background: var(--paper);
+  border: 1px solid var(--line);
   border-radius: 0.6rem;
 }
 
@@ -326,7 +325,7 @@ textarea {
 
 .compatibility-checks li {
   margin: 0.35rem 0;
-  color: #b9c4bc;
+  color: var(--muted);
 }
 
 .override-form {
@@ -344,16 +343,16 @@ textarea {
   display: grid;
   place-items: center;
   padding: 2rem;
-  background: #080c0acc;
+  background: rgb(32 36 33 / 78%);
 }
 
 .confirmation-dialog {
   width: min(32rem, 100%);
   padding: 2rem;
-  background: #16211c;
-  border: 1px solid #76b88e;
+  background: var(--surface);
+  border: 1px solid var(--blue);
   border-radius: 0.8rem;
-  box-shadow: 0 2rem 5rem #0008;
+  box-shadow: 0 2rem 5rem rgb(32 36 33 / 50%);
 }
 
 .confirmation-dialog h2 {
@@ -364,4 +363,143 @@ textarea {
 .confirmation-dialog > div:last-child {
   justify-content: flex-start;
   margin-top: 1.5rem;
+}
+
+.printers-page,
+.printer-detail {
+  gap: 1.35rem;
+}
+.printers-heading h1,
+.printer-detail-heading h1 {
+  font-size: clamp(2.1rem, 3.2vw, 3rem);
+}
+.printer-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+.printer-card,
+.printer-panel,
+.printer-form,
+.printer-empty {
+  background: var(--surface);
+  border-color: var(--line);
+  border-radius: 4px;
+}
+.printer-card {
+  min-height: 8rem;
+  padding: 1rem;
+}
+.printer-card:hover {
+  color: var(--ink);
+  background: var(--surface-alt);
+  border-color: var(--line-strong);
+}
+.printer-card > div {
+  font-size: 1.05rem;
+}
+.status-dot {
+  width: 0.58rem;
+  height: 0.58rem;
+  border: 1px solid rgb(32 36 33 / 15%);
+}
+.status-online {
+  background: var(--success-ink);
+  box-shadow: none;
+}
+.status-offline {
+  background: var(--danger-ink);
+}
+.printer-panel,
+.printer-form,
+.printer-empty {
+  padding: 1.2rem;
+}
+.monitor-layout {
+  grid-template-columns: minmax(0, 1.2fr) minmax(15rem, 0.8fr);
+  gap: 1rem;
+}
+.monitor-stats {
+  gap: 0;
+}
+.monitor-stats div {
+  padding: 0.65rem 0.5rem;
+  background: transparent;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+}
+.temperature-list span {
+  padding: 0.35rem 0.55rem;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+.compatibility-compatible {
+  color: var(--success-ink);
+  background: var(--success-bg);
+}
+.compatibility-unknown {
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+}
+.compatibility-incompatible {
+  color: var(--danger-ink);
+  background: var(--danger-bg);
+}
+.printer-notice,
+.stale-warning {
+  color: var(--warning-ink);
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  border-radius: 3px;
+}
+.queue-list > li {
+  background: var(--surface-alt);
+  border-color: var(--line);
+  border-radius: 3px;
+}
+.confirmation-dialog {
+  border-color: var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 1.2rem 3rem rgb(32 36 33 / 18%);
+}
+.confirmation-dialog h2 {
+  font-size: 1.5rem;
+}
+
+@media (max-width: 980px) {
+  .monitor-layout {
+    grid-template-columns: 1fr;
+  }
+  .webcam-frame {
+    min-height: 14rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .printers-heading,
+  .printer-detail-heading,
+  .panel-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .printer-grid,
+  .printer-form-grid {
+    grid-template-columns: 1fr;
+  }
+  .printer-form-actions,
+  .queue-entry-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .control-row,
+  .temperature-control {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .confirmation-backdrop {
+    padding: 0.85rem;
+  }
+  .confirmation-dialog {
+    padding: 1.25rem;
+  }
 }

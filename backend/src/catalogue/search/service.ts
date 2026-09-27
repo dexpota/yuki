@@ -47,6 +47,12 @@ export interface CatalogueSearchItem {
   readonly importSource: CatalogueImportSource;
   readonly favorite: boolean;
   readonly currentVersionId: string;
+  readonly currentVersionLabel: string;
+  readonly fileSummary: {
+    readonly filename: string;
+    readonly format: CatalogueAssetFormat;
+    readonly count: number;
+  } | null;
   readonly coverAssetId: string | null;
   readonly thumbnail: {
     readonly status: GeneratedArtifactStatus | 'missing';
@@ -72,6 +78,10 @@ interface SearchRow {
   readonly import_source: CatalogueImportSource;
   readonly favorite: boolean;
   readonly current_version_id: string;
+  readonly current_version_label: string;
+  readonly primary_filename: string | null;
+  readonly primary_format: CatalogueAssetFormat | null;
+  readonly current_version_file_count: number | null;
   readonly cover_asset_id: string | null;
   readonly thumbnail_artifact_id: string | null;
   readonly thumbnail_status: GeneratedArtifactStatus | null;
@@ -196,9 +206,35 @@ export class CatalogueSearchService {
       )
       select
         page.*,
+        current_version.label as current_version_label,
+        files.original_filename as primary_filename,
+        files.format as primary_format,
+        files.file_count as current_version_file_count,
         thumbnail.id as thumbnail_artifact_id,
         thumbnail.status as thumbnail_status
       from page
+      inner join catalogue_model_versions current_version
+        on current_version.id = page.current_version_id
+        and current_version.model_id = page.id
+      left join lateral (
+        select
+          asset.original_filename,
+          asset.format,
+          count(*) over ()::integer as file_count
+        from catalogue_assets asset
+        where asset.model_version_id = page.current_version_id
+        order by
+          case asset.role
+            when 'geometry' then 0
+            when 'gcode' then 1
+            when 'image' then 2
+            when 'document' then 3
+            when 'original_archive' then 4
+            else 5
+          end,
+          asset.id
+        limit 1
+      ) files on true
       left join lateral (
         select artifact.id, artifact.status
         from catalogue_assets asset
@@ -334,6 +370,15 @@ function toItem(row: SearchRow): CatalogueSearchItem {
     importSource: row.import_source,
     favorite: row.favorite,
     currentVersionId: row.current_version_id,
+    currentVersionLabel: row.current_version_label,
+    fileSummary:
+      row.primary_filename && row.primary_format && row.current_version_file_count !== null
+        ? {
+            filename: row.primary_filename,
+            format: row.primary_format,
+            count: row.current_version_file_count,
+          }
+        : null,
     coverAssetId: row.cover_asset_id,
     thumbnail: {
       status: row.thumbnail_status ?? 'missing',

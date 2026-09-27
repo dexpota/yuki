@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Link } from 'react-router';
 
 import { useSession } from '../../settings/identity/session.js';
@@ -25,7 +25,6 @@ export function NotificationsPage() {
     <section className="notifications-page">
       <header className="notifications-heading">
         <div>
-          <p className="eyebrow">Printing</p>
           <h1>Notifications</h1>
           <p>
             Print results and active-job disconnects appear here within a few seconds. Delivery
@@ -150,11 +149,20 @@ function NotificationCard({
   );
 }
 
-function kindIcon(kind: Notification['kind']): string {
-  if (kind === 'print_completed') return '✓';
-  if (kind === 'print_cancelled') return '×';
-  if (kind === 'printer_disconnected') return '!';
-  return '⚠';
+function kindIcon(kind: Notification['kind']): ReactNode {
+  return (
+    <svg viewBox="0 0 20 20" aria-hidden="true">
+      {kind === 'print_completed' ? <path d="m4 10 4 4 8-9" /> : null}
+      {kind === 'print_cancelled' ? <path d="m5 5 10 10M15 5 5 15" /> : null}
+      {kind === 'printer_disconnected' ? <path d="M10 3v8m0 4v.2" /> : null}
+      {kind === 'print_failed' ? (
+        <>
+          <path d="M10 2.5 18 17H2L10 2.5Z" />
+          <path d="M10 7v4m0 2.5v.2" />
+        </>
+      ) : null}
+    </svg>
+  );
 }
 
 function formatDateTime(value: string): string {

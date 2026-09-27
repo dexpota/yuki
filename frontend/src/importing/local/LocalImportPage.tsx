@@ -142,7 +142,6 @@ export function LocalImportPage({ csrfToken }: { readonly csrfToken: string }) {
     <section className="local-import-page">
       <header className="local-import-heading">
         <div>
-          <p className="eyebrow">Manual import</p>
           <h1>{addingVersion ? `Add a version to ${targetModelName}` : 'Add a model'}</h1>
           <p>
             Upload a model file or ZIP archive. Original bytes are always retained
@@ -308,7 +307,6 @@ function PortableImport({ csrfToken }: { readonly csrfToken: string }) {
   return (
     <section className="portable-import">
       <div>
-        <p className="eyebrow">Yuki portability</p>
         <h2>Re-import an exported model</h2>
         <p>Versions, assets, metadata, generated previews, and print history are preserved.</p>
       </div>
@@ -381,7 +379,6 @@ function ImportReport({
     <section className="import-report" aria-live="polite">
       <header>
         <div>
-          <p className="eyebrow">Import status</p>
           <h2>{statusTitle(session)}</h2>
         </div>
         <span className={`import-state state-${session.state}`}>{session.state}</span>

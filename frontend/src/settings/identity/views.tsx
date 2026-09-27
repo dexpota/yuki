@@ -9,7 +9,6 @@ type AnonymousSession = Extract<SessionState, { authenticated: false }>;
 export function SetupPage({ session }: { readonly session: AnonymousSession }) {
   return (
     <IdentityForm
-      eyebrow="Welcome to Yuki"
       heading="Create your owner account"
       introduction="This account protects your catalogue and printer controls."
       submitLabel="Create account"
@@ -30,7 +29,6 @@ export function SignInPage({
 }) {
   return (
     <IdentityForm
-      eyebrow="Yuki"
       heading="Sign in to your catalogue"
       introduction="Enter the owner account credentials for this installation."
       submitLabel="Sign in"
@@ -43,7 +41,6 @@ export function SignInPage({
 }
 
 interface IdentityFormProps {
-  readonly eyebrow: string;
   readonly heading: string;
   readonly introduction: string;
   readonly submitLabel: string;
@@ -73,7 +70,6 @@ function IdentityForm(props: IdentityFormProps) {
   return (
     <main className="identity-page">
       <section className="identity-card" aria-labelledby="identity-heading">
-        <p className="eyebrow">{props.eyebrow}</p>
         <h1 id="identity-heading">{props.heading}</h1>
         <p>{props.introduction}</p>
         {props.notice === undefined ? null : (

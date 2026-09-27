@@ -61,11 +61,10 @@ export function ModelPage() {
   return (
     <article className="model-detail">
       <Link className="catalogue-back" to="/">
-        ← Catalogue
+        Back to catalogue
       </Link>
       <header className="model-detail-heading">
         <div>
-          <p className="eyebrow">Model</p>
           <h1>{value.model.name}</h1>
           <p>{value.model.description || 'No description yet.'}</p>
         </div>
@@ -76,7 +75,10 @@ export function ModelPage() {
           aria-pressed={value.model.favorite}
           onClick={() => favorite.mutate(!value.model.favorite)}
         >
-          {value.model.favorite ? '★ Favorite' : '☆ Add favorite'}
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="m10 2.3 2.35 4.76 5.25.76-3.8 3.7.9 5.23L10 14.28l-4.7 2.47.9-5.23-3.8-3.7 5.25-.76L10 2.3Z" />
+          </svg>
+          {value.model.favorite ? 'Favorited' : 'Add to favorites'}
         </button>
       </header>
       <MutationError mutations={[favorite]} />
@@ -406,7 +408,7 @@ function CollectionsEditor({ detail, csrfToken, onSuccess }: EditorProps) {
                 )
               }
             >
-              ×
+              <span className="remove-marker" aria-hidden="true" />
             </button>
           </li>
         ))}
