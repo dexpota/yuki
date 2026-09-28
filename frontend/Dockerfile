@@ -1,4 +1,4 @@
-FROM node:24.18.0-bookworm-slim
+FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS build
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /workspace
@@ -12,9 +12,39 @@ COPY processor/package.json ./processor/
 RUN pnpm install --filter yuki --filter @yuki/frontend --frozen-lockfile
 
 COPY frontend/src ./frontend/src
+RUN pnpm --filter @yuki/frontend build
+
+FROM build AS development
+
 RUN chmod -R a=rX /workspace \
   && mkdir -p /workspace/frontend/node_modules/.vite \
   && chown -R node:node /workspace/frontend/node_modules/.vite
 WORKDIR /workspace/frontend
 USER node
 CMD ["node", "node_modules/vite/bin/vite.js", "--configLoader", "runner", "--host", "0.0.0.0", "--port", "5173"]
+
+FROM caddy:2.10.0-alpine@sha256:ae4458638da8e1a91aafffb231c5f8778e964bca650c8a8cb23a7e8ac557aa3c AS production
+
+ARG VERSION=0.0.0-development
+ARG REVISION=unknown
+ARG CREATED=unknown
+
+LABEL org.opencontainers.image.title="Yuki web" \
+  org.opencontainers.image.description="Compiled Yuki browser application" \
+  org.opencontainers.image.source="https://github.com/dexpota/yuki" \
+  org.opencontainers.image.version="${VERSION}" \
+  org.opencontainers.image.revision="${REVISION}" \
+  org.opencontainers.image.created="${CREATED}"
+
+ENV YUKI_VERSION=${VERSION} \
+  YUKI_SOURCE_REVISION=${REVISION} \
+  XDG_CONFIG_HOME=/tmp/caddy/config \
+  XDG_DATA_HOME=/tmp/caddy/data
+
+COPY frontend/Caddyfile /etc/caddy/Caddyfile
+COPY --from=build /workspace/frontend/dist /srv
+RUN setcap -r /usr/bin/caddy \
+  && chmod -R a=rX /etc/caddy/Caddyfile /srv
+
+USER 65532:65532
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]

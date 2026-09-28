@@ -1,0 +1,281 @@
+name: Release production images
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - ".github/workflows/release-images.yml"
+      - ".dockerignore"
+      - "backend/**"
+      - "deploy/generate-release-images.mjs"
+      - "deploy/smoke-release-image.sh"
+      - "docs/release-images-v1.schema.json"
+      - "frontend/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "processor/**"
+      - "tsconfig.base.json"
+  pull_request:
+    paths:
+      - ".github/workflows/release-images.yml"
+      - ".dockerignore"
+      - "backend/**"
+      - "deploy/generate-release-images.mjs"
+      - "deploy/smoke-release-image.sh"
+      - "docs/release-images-v1.schema.json"
+      - "frontend/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "processor/**"
+      - "tsconfig.base.json"
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-images-${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate release identity
+    runs-on: ubuntu-24.04
+    outputs:
+      created: ${{ steps.identity.outputs.created }}
+      publish: ${{ steps.identity.outputs.publish }}
+      revision: ${{ steps.identity.outputs.revision }}
+      tag: ${{ steps.identity.outputs.tag }}
+      version: ${{ steps.identity.outputs.version }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+      - name: Validate identity
+        id: identity
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          set -euo pipefail
+          revision=$(git rev-parse HEAD)
+          created=$(git show --no-patch --format=%cI HEAD)
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            if [[ ! "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "Release tag must be exact vMAJOR.MINOR.PATCH SemVer." >&2
+              exit 1
+            fi
+            tag_revision=$(git rev-parse "${RELEASE_TAG}^{commit}")
+            test "$revision" = "$tag_revision"
+            version=${RELEASE_TAG#v}
+            publish=true
+            tag=$RELEASE_TAG
+          else
+            version=0.0.0
+            publish=false
+            tag=v0.0.0
+          fi
+          echo "created=$created" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: Smoke ${{ matrix.platform }} images
+    needs: validate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.sha }}
+      - name: Build production images
+        env:
+          CREATED: ${{ needs.validate.outputs.created }}
+          PLATFORM: ${{ matrix.platform }}
+          REVISION: ${{ needs.validate.outputs.revision }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          for role in backend frontend processor; do
+            docker build \
+              --file "$role/Dockerfile" \
+              --platform "$PLATFORM" \
+              --target production \
+              --build-arg "VERSION=$VERSION" \
+              --build-arg "REVISION=$REVISION" \
+              --build-arg "CREATED=$CREATED" \
+              --tag "yuki-${role}:release-smoke" \
+              .
+          done
+      - name: Smoke production images
+        env:
+          YUKI_EXPECTED_REVISION: ${{ needs.validate.outputs.revision }}
+          YUKI_EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          ./deploy/smoke-release-image.sh backend yuki-backend:release-smoke
+          ./deploy/smoke-release-image.sh web yuki-frontend:release-smoke
+          ./deploy/smoke-release-image.sh processor yuki-processor:release-smoke
+
+  publish:
+    name: Publish exact release images
+    if: needs.validate.outputs.publish == 'true'
+    needs: [validate, smoke]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # BuildKit's registry attestations use OIDC identity and package writes.
+      id-token: write
+      packages: write
+    env:
+      BACKEND_IMAGE: ghcr.io/dexpota/yuki-backend
+      PROCESSOR_IMAGE: ghcr.io/dexpota/yuki-processor
+      WEB_IMAGE: ghcr.io/dexpota/yuki-web
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+      - name: Sign in to GHCR
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
+        with:
+          platforms: amd64,arm64
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3.11.1
+      - name: Refuse mutable release tags
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          for image in "$BACKEND_IMAGE" "$WEB_IMAGE" "$PROCESSOR_IMAGE"; do
+            if docker buildx imagetools inspect "$image:$VERSION" >/dev/null 2>&1; then
+              echo "$image:$VERSION already exists; exact release tags are immutable." >&2
+              exit 1
+            fi
+          done
+      - name: Publish backend image
+        id: backend
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.BACKEND_IMAGE }}:${{ needs.validate.outputs.version }}
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+            REVISION=${{ needs.validate.outputs.revision }}
+            CREATED=${{ needs.validate.outputs.created }}
+          cache-from: type=gha,scope=backend-release
+          cache-to: type=gha,mode=max,scope=backend-release
+          provenance: mode=max
+          sbom: true
+      - name: Publish web image
+        id: web
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: frontend/Dockerfile
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.WEB_IMAGE }}:${{ needs.validate.outputs.version }}
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+            REVISION=${{ needs.validate.outputs.revision }}
+            CREATED=${{ needs.validate.outputs.created }}
+          cache-from: type=gha,scope=web-release
+          cache-to: type=gha,mode=max,scope=web-release
+          provenance: mode=max
+          sbom: true
+      - name: Publish processor image
+        id: processor
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6.18.0
+        with:
+          context: .
+          file: processor/Dockerfile
+          target: production
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.PROCESSOR_IMAGE }}:${{ needs.validate.outputs.version }}
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+            REVISION=${{ needs.validate.outputs.revision }}
+            CREATED=${{ needs.validate.outputs.created }}
+          cache-from: type=gha,scope=processor-release
+          cache-to: type=gha,mode=max,scope=processor-release
+          provenance: mode=max
+          sbom: true
+      - name: Record index and platform digests
+        env:
+          YUKI_BACKEND_INDEX_FILE: backend-index.json
+          YUKI_BACKEND_REFERENCE: ${{ env.BACKEND_IMAGE }}@${{ steps.backend.outputs.digest }}
+          YUKI_BACKEND_TAG: ${{ env.BACKEND_IMAGE }}:${{ needs.validate.outputs.version }}
+          YUKI_PROCESSOR_INDEX_FILE: processor-index.json
+          YUKI_PROCESSOR_REFERENCE: ${{ env.PROCESSOR_IMAGE }}@${{ steps.processor.outputs.digest }}
+          YUKI_PROCESSOR_TAG: ${{ env.PROCESSOR_IMAGE }}:${{ needs.validate.outputs.version }}
+          YUKI_RELEASE_CREATED_AT: ${{ github.event.release.published_at }}
+          YUKI_RELEASE_IMAGES_OUTPUT: release-images.json
+          YUKI_RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+          YUKI_RELEASE_VERSION: ${{ needs.validate.outputs.version }}
+          YUKI_SOURCE_REPOSITORY: https://github.com/${{ github.repository }}
+          YUKI_SOURCE_REVISION: ${{ needs.validate.outputs.revision }}
+          YUKI_WEB_INDEX_FILE: web-index.json
+          YUKI_WEB_REFERENCE: ${{ env.WEB_IMAGE }}@${{ steps.web.outputs.digest }}
+          YUKI_WEB_TAG: ${{ env.WEB_IMAGE }}:${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          docker buildx imagetools inspect "$YUKI_BACKEND_REFERENCE" --raw > "$YUKI_BACKEND_INDEX_FILE"
+          docker buildx imagetools inspect "$YUKI_WEB_REFERENCE" --raw > "$YUKI_WEB_INDEX_FILE"
+          docker buildx imagetools inspect "$YUKI_PROCESSOR_REFERENCE" --raw > "$YUKI_PROCESSOR_INDEX_FILE"
+          node deploy/generate-release-images.mjs
+      - name: Retain release image manifest
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-images-${{ needs.validate.outputs.version }}
+          path: release-images.json
+          if-no-files-found: error
+          retention-days: 90
+
+  attach-release-manifest:
+    name: Attach image manifest to release
+    if: needs.validate.outputs.publish == 'true'
+    needs: [validate, publish]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download release image manifest
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: release-images-${{ needs.validate.outputs.version }}
+      - name: Attach image manifest to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.validate.outputs.tag }}
+        run: gh release upload "$RELEASE_TAG" release-images.json

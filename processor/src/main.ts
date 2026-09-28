@@ -17,7 +17,7 @@ import {
   parseRequest,
 } from './protocol.js';
 
-const PROCESSOR_VERSION = '0.1.0';
+const developmentProcessorVersion = '0.0.0-development';
 
 export async function processMessage(message: string): Promise<ProcessorResponse> {
   let value: unknown;
@@ -40,7 +40,7 @@ export async function processMessage(message: string): Promise<ProcessorResponse
   try {
     if (request.operation === 'probe') {
       return success(request.requestId, {
-        processorVersion: PROCESSOR_VERSION,
+        processorVersion: processorVersion(),
         capabilities: ['detect-file', 'extract-zip', previewOperation, gcodeFactsOperation],
       });
     }
@@ -106,6 +106,10 @@ export async function processMessage(message: string): Promise<ProcessorResponse
       true,
     );
   }
+}
+
+function processorVersion(): string {
+  return process.env.YUKI_VERSION?.trim() || developmentProcessorVersion;
 }
 
 function success<TResult extends ProcessorOperationResult>(

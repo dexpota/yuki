@@ -1,18 +1,34 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { processMessage } from '../src/main.js';
 import { type ProtocolValidationError, parseRequest } from '../src/protocol.js';
 
 describe('processor protocol', () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it('responds to a version 1 probe', async () => {
+    vi.stubEnv('YUKI_VERSION', '');
+
     await expect(
       processMessage('{"protocolVersion":1,"requestId":"request-1","operation":"probe"}'),
     ).resolves.toMatchObject({
       requestId: 'request-1',
       ok: true,
       result: {
+        processorVersion: '0.0.0-development',
         capabilities: ['detect-file', 'extract-zip', 'generate-preview', 'parse-gcode-facts'],
       },
+    });
+  });
+
+  it('reports the version embedded in the processor image without changing the protocol version', async () => {
+    vi.stubEnv('YUKI_VERSION', '1.2.3');
+
+    await expect(
+      processMessage('{"protocolVersion":1,"requestId":"request-version","operation":"probe"}'),
+    ).resolves.toMatchObject({
+      protocolVersion: 1,
+      result: { processorVersion: '1.2.3' },
     });
   });
 

@@ -3,6 +3,7 @@ name: yuki
 x-backend-build: &backend-build
   context: ..
   dockerfile: backend/Dockerfile
+  target: development
 
 services:
   proxy:
@@ -297,6 +298,7 @@ services:
     build:
       context: ..
       dockerfile: frontend/Dockerfile
+      target: development
     command:
       [
         "node",

@@ -1,4 +1,4 @@
-FROM node:24.18.0-bookworm-slim
+FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS build
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /workspace
@@ -13,11 +13,41 @@ RUN pnpm install --filter yuki --filter @yuki/backend --frozen-lockfile
 
 COPY backend/migrations ./backend/migrations
 COPY backend/src ./backend/src
-RUN pnpm --filter @yuki/backend build
+RUN pnpm --filter @yuki/backend build \
+  && pnpm --filter @yuki/backend deploy --legacy --prod /runtime
+
+FROM build AS development
+
 RUN chmod -R a=rX /workspace \
   && mkdir -p /data/yuki \
   && chown node:node /data/yuki
 
 WORKDIR /workspace/backend
+USER node
+CMD ["node", "dist/api-main.js"]
+
+FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS production
+
+ARG VERSION=0.0.0-development
+ARG REVISION=unknown
+ARG CREATED=unknown
+
+LABEL org.opencontainers.image.title="Yuki backend" \
+  org.opencontainers.image.description="Yuki API, worker, migrations, and maintenance runtime" \
+  org.opencontainers.image.source="https://github.com/dexpota/yuki" \
+  org.opencontainers.image.version="${VERSION}" \
+  org.opencontainers.image.revision="${REVISION}" \
+  org.opencontainers.image.created="${CREATED}"
+
+ENV NODE_ENV=production \
+  YUKI_VERSION=${VERSION} \
+  YUKI_SOURCE_REVISION=${REVISION}
+WORKDIR /app
+
+COPY --from=build /runtime ./
+RUN chmod -R a=rX /app \
+  && mkdir -p /data/yuki \
+  && chown node:node /data/yuki
+
 USER node
 CMD ["node", "dist/api-main.js"]
