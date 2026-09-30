@@ -3,13 +3,13 @@ import { pathToFileURL } from 'node:url';
 import { sql } from 'kysely';
 
 import {
-  type CatalogueDatabaseSchema,
-  type CatalogueSearchDatabaseSchema,
   CatalogueAssetDownloads,
+  type CatalogueDatabaseSchema,
   type CataloguePortabilityDatabaseSchema,
   CataloguePortabilityOperations,
   CataloguePreviewOperations,
   CataloguePreviewService,
+  type CatalogueSearchDatabaseSchema,
   type PreviewDatabaseSchema,
   registerCatalogueFeature,
   registerCataloguePortabilityFeature,
@@ -60,28 +60,31 @@ import {
   type StorageConfiguration,
 } from './platform/storage/index.js';
 import {
+  ExternalNotificationService,
+  type FilamentPresetDatabaseSchema,
+  FilamentPresetService,
+  type NotificationDatabaseSchema,
+  NotificationService,
+  NotificationWebhookDestinationPolicy,
+  OctoPrintMonitoringGateway,
   type PrinterControlDatabaseSchema,
   PrinterControlService,
-  OctoPrintMonitoringGateway,
   type PrinterDatabaseSchema,
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
-  type NotificationDatabaseSchema,
-  ExternalNotificationService,
-  NotificationService,
-  NotificationWebhookDestinationPolicy,
   type PrintHistoryDatabaseSchema,
   PrintHistoryService,
   type PrintStartDatabaseSchema,
   PrintStartService,
   type QueueDatabaseSchema,
   QueueService,
-  registerPrinterFeature,
-  registerPrinterEventsFeature,
-  registerPrinterControlFeature,
-  registerPrinterMonitoringFeature,
+  registerFilamentPresetFeature,
   registerNotificationFeature,
+  registerPrinterControlFeature,
+  registerPrinterEventsFeature,
+  registerPrinterFeature,
+  registerPrinterMonitoringFeature,
   registerPrintHistoryFeature,
   registerPrintStartFeature,
   registerQueueFeature,
@@ -108,6 +111,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   PrinterControlDatabaseSchema &
   PrintStartDatabaseSchema &
   NotificationDatabaseSchema &
+  FilamentPresetDatabaseSchema &
   SettingsDatabaseSchema;
 
 export interface ApiEntrypointDependencies extends EntrypointDependencies {
@@ -258,6 +262,12 @@ export async function createApiApplication(
       database: database as unknown as Database<PrinterDatabaseSchema>,
       identity,
       secrets: identity.secrets,
+    });
+    registerFilamentPresetFeature(application, {
+      identity,
+      service: new FilamentPresetService(
+        database as unknown as Database<FilamentPresetDatabaseSchema>,
+      ),
     });
     registerQueueFeature(application, {
       identity,
