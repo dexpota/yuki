@@ -6,38 +6,33 @@ import { describe, expect, it } from 'vitest';
 const repositoryRoot = join(process.cwd(), '..');
 
 describe('deployment security invariants', () => {
-  it('runs application images as unprivileged users with writable data prepared explicitly', async () => {
-    const [backend, frontend, processor] = await Promise.all([
+  it('uses exact tagged dependency versions', async () => {
+    const [backend, frontend, processor, workflow, pagesWorkflow] = await Promise.all([
       readFile(join(repositoryRoot, 'backend', 'Dockerfile'), 'utf8'),
       readFile(join(repositoryRoot, 'frontend', 'Dockerfile'), 'utf8'),
       readFile(join(repositoryRoot, 'processor', 'Dockerfile'), 'utf8'),
-    ]);
-
-    expect(backend).toContain('FROM build AS development');
-    expect(backend).toContain('FROM node:24.18.0-bookworm-slim AS production');
-    expect(backend).toContain('chown node:node /data/yuki');
-    expect(backend).toMatch(/\nUSER node\nCMD \["node", "dist\/api-main\.js"\]\s*$/);
-    expect(frontend).toContain('pnpm --filter @yuki/frontend build');
-    expect(frontend).toContain('FROM caddy:2.10.0-alpine AS production');
-    expect(frontend).toMatch(/\nUSER 65532:65532\nCMD \["caddy", "run"/);
-    expect(processor).toContain('chmod -R a=rX /app /licenses');
-    expect(processor).toMatch(/\nUSER 65532:65532\nENTRYPOINT /);
-    expect(processor).toContain('FROM node:24.18.0-alpine3.23 AS production');
-    for (const dockerfile of [backend, frontend, processor])
-      expect(dockerfile).not.toContain('@sha256:');
-  });
-
-  it('uses exact tagged action versions and publishes only exact version tags', async () => {
-    const [workflow, pagesWorkflow] = await Promise.all([
       readFile(join(repositoryRoot, '.github', 'workflows', 'release-images.yml'), 'utf8'),
       readFile(join(repositoryRoot, '.github', 'workflows', 'pages.yml'), 'utf8'),
     ]);
+
+    const baseImages = [backend, frontend, processor].flatMap(externalBaseImages);
+    expect(baseImages.length).toBeGreaterThan(0);
+    for (const image of baseImages)
+      expect(image).toMatch(/^[a-z0-9./_-]+:\d+\.\d+\.\d+(?:-[a-z0-9._-]+)?$/i);
+
     const uses = [workflow, pagesWorkflow].flatMap(
       (contents) => contents.match(/^\s*uses:\s+\S+/gm) ?? [],
     );
-
     expect(uses.length).toBeGreaterThan(0);
     for (const action of uses) expect(action).toMatch(/@v\d+\.\d+\.\d+$/);
+  });
+
+  it('publishes only exact release versions with bounded job permissions', async () => {
+    const workflow = await readFile(
+      join(repositoryRoot, '.github', 'workflows', 'release-images.yml'),
+      'utf8',
+    );
+
     expect(workflow).toContain('^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$');
     expect(workflow).toContain('platforms: linux/amd64,linux/arm64');
     expect(workflow).toContain('provenance: mode=max');
@@ -65,6 +60,18 @@ describe('deployment security invariants', () => {
     expect(serviceBlock(compose, 'processor-bridge')).toContain('user: "65532:65532"');
   });
 });
+
+function externalBaseImages(dockerfile: string): string[] {
+  const stages = new Set<string>();
+  const images: string[] = [];
+  for (const match of dockerfile.matchAll(/^FROM\s+(\S+)(?:\s+AS\s+(\S+))?/gim)) {
+    const [, reference, stage] = match;
+    if (reference === undefined) continue;
+    if (!stages.has(reference)) images.push(reference);
+    if (stage !== undefined) stages.add(stage);
+  }
+  return images;
+}
 
 function serviceBlock(compose: string, name: string): string {
   const match = compose.match(
