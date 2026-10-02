@@ -3,33 +3,7 @@ name: Release production images
 on:
   push:
     branches: [develop]
-    paths:
-      - ".github/workflows/release-images.yml"
-      - ".dockerignore"
-      - "backend/**"
-      - "deploy/generate-release-images.mjs"
-      - "deploy/smoke-release-image.sh"
-      - "docs/release-images-v1.schema.json"
-      - "frontend/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "processor/**"
-      - "tsconfig.base.json"
   pull_request:
-    paths:
-      - ".github/workflows/release-images.yml"
-      - ".dockerignore"
-      - "backend/**"
-      - "deploy/generate-release-images.mjs"
-      - "deploy/smoke-release-image.sh"
-      - "docs/release-images-v1.schema.json"
-      - "frontend/**"
-      - "package.json"
-      - "pnpm-lock.yaml"
-      - "pnpm-workspace.yaml"
-      - "processor/**"
-      - "tsconfig.base.json"
   release:
     types: [published]
 
