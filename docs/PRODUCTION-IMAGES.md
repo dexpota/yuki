@@ -73,23 +73,9 @@ release workflow checks:
 For a local candidate build:
 
 ```sh
-revision=$(git rev-parse HEAD)
-created=$(git show --no-patch --format=%cI HEAD)
-
-docker build -f backend/Dockerfile --target production \
-  --build-arg VERSION=1.2.3 --build-arg REVISION="$revision" \
-  --build-arg CREATED="$created" -t yuki-backend:release-smoke .
-docker build -f frontend/Dockerfile --target production \
-  --build-arg VERSION=1.2.3 --build-arg REVISION="$revision" \
-  --build-arg CREATED="$created" -t yuki-web:release-smoke .
-docker build -f processor/Dockerfile --target production \
-  --build-arg VERSION=1.2.3 --build-arg REVISION="$revision" \
-  --build-arg CREATED="$created" -t yuki-processor:release-smoke .
-
-YUKI_EXPECTED_VERSION=1.2.3 YUKI_EXPECTED_REVISION="$revision" \
-  ./deploy/smoke-release-image.sh backend yuki-backend:release-smoke
-YUKI_EXPECTED_VERSION=1.2.3 YUKI_EXPECTED_REVISION="$revision" \
-  ./deploy/smoke-release-image.sh web yuki-web:release-smoke
-YUKI_EXPECTED_VERSION=1.2.3 YUKI_EXPECTED_REVISION="$revision" \
-  ./deploy/smoke-release-image.sh processor yuki-processor:release-smoke
+make smoke-release-images VERSION=1.2.3
 ```
+
+The target embeds the current commit and its timestamp, builds all three
+production images, and runs their smoke checks. It does not create a Git tag,
+publish images, or create a GitHub release.
