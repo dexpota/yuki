@@ -68,7 +68,12 @@ and do not bootstrap a package manager. Application containers never receive
 the Docker socket; the processor supervisor alone launches the fixed,
 digest-pinned restricted processor operation.
 
-Static deployment invariants are covered by
-`backend/test/security/hardening.test.ts`. Before a release, build the three
-images, inspect their configured users, run the processor container probes, and
-validate the fully rendered Compose configuration.
+Before a release, validate the fully rendered Compose configuration.
+Production-image publication runs
+`deploy/smoke-release-image.sh` on native AMD64 and ARM64 runners. The checks
+exercise Argon2 in the backend image, static SPA delivery from the web image,
+and a real STEP conversion in the processor under its network, filesystem,
+capability, CPU, memory, and PID restrictions. Published images include
+BuildKit SBOM and provenance attestations; their exact index and platform
+digests are recorded in the release asset described by
+`docs/PRODUCTION-IMAGES.md`.

@@ -8,8 +8,22 @@ RUN pnpm install --filter yuki --filter @yuki/processor --frozen-lockfile \
   && pnpm --filter @yuki/processor build \
   && pnpm --filter @yuki/processor deploy --legacy --prod /runtime
 
-FROM node:24.18.0-alpine3.23
-ENV NODE_ENV=production
+FROM node:24.18.0-alpine3.23 AS production
+
+ARG VERSION=0.0.0-development
+ARG REVISION=unknown
+ARG CREATED=unknown
+
+LABEL org.opencontainers.image.title="Yuki restricted processor" \
+  org.opencontainers.image.description="Isolated processor for untrusted 3D model, archive, image, and G-code files" \
+  org.opencontainers.image.source="https://github.com/dexpota/yuki" \
+  org.opencontainers.image.version="${VERSION}" \
+  org.opencontainers.image.revision="${REVISION}" \
+  org.opencontainers.image.created="${CREATED}"
+
+ENV NODE_ENV=production \
+  YUKI_VERSION=${VERSION} \
+  YUKI_SOURCE_REVISION=${REVISION}
 WORKDIR /app
 COPY --from=build /runtime ./
 COPY --from=build \

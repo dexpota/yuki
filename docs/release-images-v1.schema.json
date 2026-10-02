@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/dexpota/yuki/blob/develop/docs/release-images-v1.schema.json",
+  "title": "Yuki release image manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "release", "images"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "tag", "sourceRevision", "sourceRepository", "createdAt"],
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "tag": {
+          "type": "string",
+          "pattern": "^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+        },
+        "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "sourceRepository": { "type": "string", "format": "uri" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "images": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "web", "processor"],
+      "properties": {
+        "backend": { "$ref": "#/$defs/image" },
+        "web": { "$ref": "#/$defs/image" },
+        "processor": { "$ref": "#/$defs/image" }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "reference", "digest", "platforms"],
+      "properties": {
+        "tag": { "type": "string", "minLength": 1 },
+        "reference": { "type": "string", "pattern": "@sha256:[a-f0-9]{64}$" },
+        "digest": { "$ref": "#/$defs/digest" },
+        "platforms": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["os", "architecture", "digest"],
+            "properties": {
+              "os": { "const": "linux" },
+              "architecture": { "enum": ["amd64", "arm64"] },
+              "digest": { "$ref": "#/$defs/digest" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

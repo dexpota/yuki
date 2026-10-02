@@ -49,6 +49,14 @@ and print photos survived. Failure artifacts are retained under
 
 ## Additional release checks
 
+The production images and their metadata must first pass the P01 gate in
+`docs/PRODUCTION-IMAGES.md`. The release must contain public backend, web, and
+restricted-processor images for `linux/amd64` and `linux/arm64`, with exact
+immutable semantic-version tags, SBOM and provenance attestations, and a
+`release-images.json` asset whose source revision matches the release tag.
+Image smoke checks are required on both declared platforms. Native installation
+and prior-release upgrade evidence belongs to the production acceptance gate.
+
 Run the complete repository verification:
 
 ```sh

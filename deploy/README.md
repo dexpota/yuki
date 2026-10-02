@@ -6,6 +6,11 @@ service applies pending migrations before the API and worker start. A narrow
 host-side supervisor runs untrusted file processing without exposing the Docker
 socket to application containers.
 
+This Compose file selects the `development` stages in the backend and frontend
+Dockerfiles. Versioned production images and their release metadata are
+documented in `docs/PRODUCTION-IMAGES.md`; a supported production Compose
+topology is separate work and is not provided by this development file.
+
 ## Start
 
 Docker Compose automatically reads `deploy/.env` when commands are run from this
