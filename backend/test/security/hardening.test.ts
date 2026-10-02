@@ -14,32 +14,30 @@ describe('deployment security invariants', () => {
     ]);
 
     expect(backend).toContain('FROM build AS development');
-    expect(backend).toMatch(/FROM node:24\.18\.0-bookworm-slim@sha256:[a-f0-9]{64} AS production/);
+    expect(backend).toContain('FROM node:24.18.0-bookworm-slim AS production');
     expect(backend).toContain('chown node:node /data/yuki');
     expect(backend).toMatch(/\nUSER node\nCMD \["node", "dist\/api-main\.js"\]\s*$/);
     expect(frontend).toContain('pnpm --filter @yuki/frontend build');
-    expect(frontend).toMatch(/FROM caddy:2\.10\.0-alpine@sha256:[a-f0-9]{64} AS production/);
+    expect(frontend).toContain('FROM caddy:2.10.0-alpine AS production');
     expect(frontend).toMatch(/\nUSER 65532:65532\nCMD \["caddy", "run"/);
     expect(processor).toContain('chmod -R a=rX /app /licenses');
     expect(processor).toMatch(/\nUSER 65532:65532\nENTRYPOINT /);
-    for (const dockerfile of [backend, frontend, processor]) {
-      const baseImages = dockerfile.match(/^FROM\s+\S+/gm) ?? [];
-      expect(baseImages.length).toBeGreaterThan(0);
-      for (const baseImage of baseImages) {
-        if (!baseImage.endsWith('build')) expect(baseImage).toMatch(/@sha256:[a-f0-9]{64}$/);
-      }
-    }
+    expect(processor).toContain('FROM node:24.18.0-alpine3.23 AS production');
+    for (const dockerfile of [backend, frontend, processor])
+      expect(dockerfile).not.toContain('@sha256:');
   });
 
-  it('pins release workflow actions and publishes only exact version tags', async () => {
-    const workflow = await readFile(
-      join(repositoryRoot, '.github', 'workflows', 'release-images.yml'),
-      'utf8',
+  it('uses exact tagged action versions and publishes only exact version tags', async () => {
+    const [workflow, pagesWorkflow] = await Promise.all([
+      readFile(join(repositoryRoot, '.github', 'workflows', 'release-images.yml'), 'utf8'),
+      readFile(join(repositoryRoot, '.github', 'workflows', 'pages.yml'), 'utf8'),
+    ]);
+    const uses = [workflow, pagesWorkflow].flatMap(
+      (contents) => contents.match(/^\s*uses:\s+\S+/gm) ?? [],
     );
-    const uses = workflow.match(/^\s*uses:\s+\S+/gm) ?? [];
 
     expect(uses.length).toBeGreaterThan(0);
-    for (const action of uses) expect(action).toMatch(/@[a-f0-9]{40}(?:\s+#.*)?$/);
+    for (const action of uses) expect(action).toMatch(/@v\d+\.\d+\.\d+$/);
     expect(workflow).toContain('^v(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$');
     expect(workflow).toContain('platforms: linux/amd64,linux/arm64');
     expect(workflow).toContain('provenance: mode=max');

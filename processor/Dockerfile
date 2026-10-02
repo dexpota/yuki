@@ -1,4 +1,4 @@
-FROM node:24.18.0-alpine3.23@sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436 AS build
+FROM node:24.18.0-alpine3.23 AS build
 WORKDIR /build
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
@@ -8,7 +8,7 @@ RUN pnpm install --filter yuki --filter @yuki/processor --frozen-lockfile \
   && pnpm --filter @yuki/processor build \
   && pnpm --filter @yuki/processor deploy --legacy --prod /runtime
 
-FROM node:24.18.0-alpine3.23@sha256:595398b0081eacda8e1c4c5b97b76cd1020e4d58a8ebcb4843b9bca1e79e7436 AS production
+FROM node:24.18.0-alpine3.23 AS production
 
 ARG VERSION=0.0.0-development
 ARG REVISION=unknown

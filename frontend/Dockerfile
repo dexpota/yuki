@@ -1,4 +1,4 @@
-FROM node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d AS build
+FROM node:24.18.0-bookworm-slim AS build
 
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /workspace
@@ -23,7 +23,7 @@ WORKDIR /workspace/frontend
 USER node
 CMD ["node", "node_modules/vite/bin/vite.js", "--configLoader", "runner", "--host", "0.0.0.0", "--port", "5173"]
 
-FROM caddy:2.10.0-alpine@sha256:ae4458638da8e1a91aafffb231c5f8778e964bca650c8a8cb23a7e8ac557aa3c AS production
+FROM caddy:2.10.0-alpine AS production
 
 ARG VERSION=0.0.0-development
 ARG REVISION=unknown
