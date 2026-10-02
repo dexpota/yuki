@@ -23,6 +23,20 @@ pnpm lint
 pnpm format:check
 ```
 
+## Validate production images locally
+
+With Docker running, build the backend, web, and processor production images
+and run their smoke checks with an explicit candidate version:
+
+```sh
+make smoke-release-images VERSION=1.2.3
+```
+
+This command uses the current commit metadata and does not create a Git tag,
+publish images, or create a GitHub release. See
+[Production container images](docs/PRODUCTION-IMAGES.md) for the release image
+contract and publication process.
+
 ## Run the development stack
 
 ```sh
