@@ -26,7 +26,7 @@ describe('release image manifest generator', () => {
       schemaVersion: 1,
       release: {
         version: '1.2.3',
-        tag: 'v1.2.3',
+        tag: '1.2.3',
         sourceRevision: 'a'.repeat(40),
       },
       images: {
@@ -80,7 +80,7 @@ function environment(directory: string): NodeJS.ProcessEnv {
   const values: NodeJS.ProcessEnv = {
     ...process.env,
     YUKI_RELEASE_VERSION: '1.2.3',
-    YUKI_RELEASE_TAG: 'v1.2.3',
+    YUKI_RELEASE_TAG: '1.2.3',
     YUKI_SOURCE_REVISION: 'a'.repeat(40),
     YUKI_SOURCE_REPOSITORY: 'https://github.com/dexpota/yuki',
     YUKI_RELEASE_CREATED_AT: '2026-09-28T12:00:00Z',

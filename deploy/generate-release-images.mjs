@@ -49,8 +49,8 @@ const tag = required('YUKI_RELEASE_TAG');
 const sourceRevision = required('YUKI_SOURCE_REVISION');
 const sourceRepository = required('YUKI_SOURCE_REPOSITORY');
 const createdAt = required('YUKI_RELEASE_CREATED_AT');
-if (!versionPattern.test(version) || tag !== `v${version}`)
-  throw new Error('Release tag must be exact vMAJOR.MINOR.PATCH SemVer.');
+if (!versionPattern.test(version) || tag !== version)
+  throw new Error('Release tag must be exact MAJOR.MINOR.PATCH SemVer.');
 if (!revisionPattern.test(sourceRevision))
   throw new Error('Source revision must be a full lowercase Git SHA.');
 if (Number.isNaN(Date.parse(createdAt))) throw new Error('Release creation time must be ISO-8601.');
