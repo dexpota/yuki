@@ -8,9 +8,12 @@ Yuki releases publish three public OCI images to GitHub Container Registry:
 | Web | `ghcr.io/dexpota/yuki-web` | Compiled browser assets served by non-root Caddy |
 | Processor | `ghcr.io/dexpota/yuki-processor` | Restricted processing of untrusted files |
 
-Production deployment topology, persistence, backup, and host service packaging
-are specified separately. This document defines only the release image
-contract.
+Production deployment topology and persistence are specified separately. This
+document defines the currently published release image contract. The planned
+Compose-managed supervisor requires a fourth release image and versioned
+successor to `release-images.json` v1; see
+[ADR-0008](./ADR-0008-compose-managed-processor-supervisor.md). The current
+three-image contract must not be treated as a complete production deployment.
 
 ## Release and tag policy
 

@@ -369,17 +369,25 @@ Restore targets a clean installation, verifies database and object checksums, ru
 
 ## 12. Deployment topology
 
-The default Compose project contains:
+The planned production Compose project contains:
 
 - `proxy`: the only host-exposed HTTP(S) service;
 - `web`: static UI assets, or assets mounted into the proxy;
 - `api`: REST, SSE, and download/upload streaming;
 - `worker`: background jobs and printer reconciliation;
+- `supervisor`: a Compose-managed broker that alone may access the container
+  runtime and launches restricted, short-lived processor jobs;
 - `processor`: invoked as restricted, ephemeral jobs or an isolated worker pool;
 - `postgres`: persistent database volume;
 - `storage`: persistent local asset volume; optional S3 configuration replaces asset writes, not PostgreSQL.
 
 Only the proxy publishes a host port. PostgreSQL and internal services remain on a private Compose network. OctoPrint and optional external notification/S3 destinations are the only necessary outbound targets during normal operation.
+
+The production supervisor is managed by the same Compose project as the other
+long-running services. The worker reaches it through an authenticated local
+socket; only the supervisor receives the container-runtime socket. See
+[ADR-0008](./docs/ADR-0008-compose-managed-processor-supervisor.md). The
+current development host-supervisor topology remains documented separately.
 
 Database migrations run as an explicit one-shot deployment step before new application containers become ready. Migrations must be backward-compatible across one rolling deployment boundary, although the default Compose upgrade may briefly stop the application.
 

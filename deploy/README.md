@@ -9,7 +9,10 @@ socket to application containers.
 This Compose file selects the `development` stages in the backend and frontend
 Dockerfiles. Versioned production images and their release metadata are
 documented in `docs/PRODUCTION-IMAGES.md`; a supported production Compose
-topology is separate work and is not provided by this development file.
+topology is separate work and is not provided by this development file. The
+production target runs the supervisor inside the Compose stack, without a host
+service; see `docs/ADR-0008-compose-managed-processor-supervisor.md`. The host
+supervisor instructions below describe only the current development setup.
 
 ## Start
 
