@@ -14,10 +14,10 @@ contract.
 
 ## Release and tag policy
 
-Publishing starts when a GitHub release with an exact `vMAJOR.MINOR.PATCH` tag
-is published. The image tag omits the leading `v`; release `v1.2.3` therefore
-publishes `:1.2.3`. Pre-release tags, `latest`, moving major tags, and moving
-minor tags are not published.
+Publishing starts when a GitHub release with an exact `MAJOR.MINOR.PATCH` tag
+is published. Release `1.2.3` therefore publishes image tag `:1.2.3`.
+Pre-release tags, `latest`, moving major tags, and moving minor tags are not
+published.
 
 Exact image tags are immutable. The workflow checks that all three tags are
 absent before building and refuses to replace an existing tag. If publication
