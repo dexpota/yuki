@@ -1,0 +1,265 @@
+services:
+  preflight:
+    image: ${YUKI_BACKEND_IMAGE:?Select a release backend image}
+    command: ["node", "dist/platform/deployment/production-preflight-main.js"]
+    restart: "no"
+    environment:
+      NODE_ENV: production
+      YUKI_BACKEND_IMAGE: ${YUKI_BACKEND_IMAGE:?}
+      YUKI_RELEASE_VERSION: ${YUKI_RELEASE_VERSION:?}
+      YUKI_RELEASE_REVISION: ${YUKI_RELEASE_REVISION:?}
+      YUKI_WEB_IMAGE: ${YUKI_WEB_IMAGE:?}
+      YUKI_PROCESSOR_IMAGE: ${YUKI_PROCESSOR_IMAGE:?}
+      YUKI_SUPERVISOR_IMAGE: ${YUKI_SUPERVISOR_IMAGE:?}
+      YUKI_POSTGRES_PASSWORD: ${YUKI_POSTGRES_PASSWORD:?}
+      YUKI_POSTGRES_USER: ${YUKI_POSTGRES_USER:-yuki}
+      YUKI_POSTGRES_DB: ${YUKI_POSTGRES_DB:-yuki}
+      YUKI_DATABASE_URL: ${YUKI_DATABASE_URL:?}
+      YUKI_CSRF_KEY: ${YUKI_CSRF_KEY:?}
+      YUKI_MASTER_KEY: ${YUKI_MASTER_KEY:?}
+      YUKI_PROCESSOR_TOKEN: ${YUKI_PROCESSOR_TOKEN:?}
+      YUKI_ALLOWED_ORIGINS: ${YUKI_ALLOWED_ORIGINS:?}
+      YUKI_PROCESSOR_WORKSPACE_VOLUME: ${YUKI_PROCESSOR_WORKSPACE_VOLUME:?}
+      YUKI_STORAGE_BACKEND: ${YUKI_STORAGE_BACKEND:-local}
+      YUKI_S3_ENDPOINT: ${YUKI_S3_ENDPOINT:-}
+      YUKI_S3_REGION: ${YUKI_S3_REGION:-}
+      YUKI_S3_BUCKET: ${YUKI_S3_BUCKET:-}
+      YUKI_S3_ACCESS_KEY_ID: ${YUKI_S3_ACCESS_KEY_ID:-}
+      YUKI_S3_SECRET_ACCESS_KEY: ${YUKI_S3_SECRET_ACCESS_KEY:-}
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  postgres:
+    image: postgres:17.5-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${YUKI_POSTGRES_DB:-yuki}
+      POSTGRES_USER: ${YUKI_POSTGRES_USER:-yuki}
+      POSTGRES_PASSWORD: ${YUKI_POSTGRES_PASSWORD:?}
+      POSTGRES_HOST_AUTH_METHOD: scram-sha-256
+    networks: [data]
+    volumes:
+      - type: volume
+        source: postgres_data
+        target: /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=$${POSTGRES_USER} --dbname=$${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+    security_opt: [no-new-privileges:true]
+    shm_size: 256mb
+
+  processor-image:
+    image: ${YUKI_PROCESSOR_IMAGE:?Select a release processor image}
+    entrypoint: ["node", "-e", "process.exit(0)"]
+    restart: "no"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+
+  migrate:
+    image: ${YUKI_BACKEND_IMAGE:?}
+    command: ["node", "dist/platform/database/migrate-main.js", "up"]
+    restart: "no"
+    environment:
+      YUKI_DATABASE_URL: ${YUKI_DATABASE_URL:?}
+    networks: [data]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  supervisor:
+    image: ${YUKI_SUPERVISOR_IMAGE:?Select a release supervisor image}
+    restart: unless-stopped
+    user: "0:0"
+    environment:
+      YUKI_PROCESSOR_TOKEN: ${YUKI_PROCESSOR_TOKEN:?}
+      YUKI_PROCESSOR_SOCKET: /run/yuki/processor.sock
+      YUKI_PROCESSOR_SOCKET_MODE: "438"
+      YUKI_PROCESSOR_IMAGE: ${YUKI_PROCESSOR_IMAGE:?}
+      YUKI_PROCESSOR_WORKSPACE_ROOT: /processor-workspace
+      YUKI_PROCESSOR_WORKSPACE_VOLUME: ${YUKI_PROCESSOR_WORKSPACE_VOLUME:?}
+    network_mode: none
+    volumes:
+      - type: bind
+        source: /var/run/docker.sock
+        target: /var/run/docker.sock
+      - type: volume
+        source: processor_socket
+        target: /run/yuki
+      - type: volume
+        source: processor_workspace
+        target: /processor-workspace
+    depends_on:
+      preflight:
+        condition: service_completed_successfully
+      processor-image:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "const s=require('node:net').createConnection('/run/yuki/processor.sock');s.on('connect',()=>{s.end();process.exit(0)});s.on('error',()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    cap_add: [DAC_OVERRIDE]
+    security_opt: [no-new-privileges:true]
+
+  maintenance:
+    image: ${YUKI_BACKEND_IMAGE:?}
+    profiles: [maintenance]
+    entrypoint: ["node", "dist/platform/maintenance/main.js"]
+    command: ["verify"]
+    restart: "no"
+    environment:
+      YUKI_DATABASE_URL: ${YUKI_DATABASE_URL:?}
+      YUKI_STORAGE_ROOT: /data/yuki
+      YUKI_STORAGE_BACKEND: ${YUKI_STORAGE_BACKEND:-local}
+      YUKI_S3_ENDPOINT: ${YUKI_S3_ENDPOINT:-}
+      YUKI_S3_REGION: ${YUKI_S3_REGION:-}
+      YUKI_S3_BUCKET: ${YUKI_S3_BUCKET:-}
+      YUKI_S3_ACCESS_KEY_ID: ${YUKI_S3_ACCESS_KEY_ID:-}
+      YUKI_S3_SECRET_ACCESS_KEY: ${YUKI_S3_SECRET_ACCESS_KEY:-}
+    networks: [data, outbound]
+    volumes:
+      - type: volume
+        source: storage_data
+        target: /data/yuki
+    depends_on:
+      postgres:
+        condition: service_healthy
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  api:
+    image: ${YUKI_BACKEND_IMAGE:?}
+    command: ["node", "dist/api-main.js"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      YUKI_DATABASE_URL: ${YUKI_DATABASE_URL:?}
+      YUKI_CSRF_KEY: ${YUKI_CSRF_KEY:?}
+      YUKI_MASTER_KEY: ${YUKI_MASTER_KEY:?}
+      YUKI_ALLOWED_ORIGINS: ${YUKI_ALLOWED_ORIGINS:?}
+      YUKI_STORAGE_ROOT: /data/yuki
+      YUKI_STORAGE_BACKEND: ${YUKI_STORAGE_BACKEND:-local}
+      YUKI_S3_ENDPOINT: ${YUKI_S3_ENDPOINT:-}
+      YUKI_S3_REGION: ${YUKI_S3_REGION:-}
+      YUKI_S3_BUCKET: ${YUKI_S3_BUCKET:-}
+      YUKI_S3_ACCESS_KEY_ID: ${YUKI_S3_ACCESS_KEY_ID:-}
+      YUKI_S3_SECRET_ACCESS_KEY: ${YUKI_S3_SECRET_ACCESS_KEY:-}
+    networks: [application, data, outbound]
+    volumes:
+      - type: volume
+        source: storage_data
+        target: /data/yuki
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    read_only: true
+    tmpfs: ["/tmp:size=32m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  worker:
+    image: ${YUKI_BACKEND_IMAGE:?}
+    command: ["node", "dist/worker-main.js"]
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      YUKI_DATABASE_URL: ${YUKI_DATABASE_URL:?}
+      YUKI_MASTER_KEY: ${YUKI_MASTER_KEY:?}
+      YUKI_STORAGE_ROOT: /data/yuki
+      YUKI_STORAGE_BACKEND: ${YUKI_STORAGE_BACKEND:-local}
+      YUKI_S3_ENDPOINT: ${YUKI_S3_ENDPOINT:-}
+      YUKI_S3_REGION: ${YUKI_S3_REGION:-}
+      YUKI_S3_BUCKET: ${YUKI_S3_BUCKET:-}
+      YUKI_S3_ACCESS_KEY_ID: ${YUKI_S3_ACCESS_KEY_ID:-}
+      YUKI_S3_SECRET_ACCESS_KEY: ${YUKI_S3_SECRET_ACCESS_KEY:-}
+      YUKI_PROCESSOR_SOCKET: /run/yuki/processor.sock
+      YUKI_PROCESSOR_TOKEN: ${YUKI_PROCESSOR_TOKEN:?}
+      YUKI_PROCESSOR_RESPONSE_ROOT: /tmp/yuki-processor-responses
+    networks: [data, outbound]
+    volumes:
+      - type: volume
+        source: storage_data
+        target: /data/yuki
+      - type: volume
+        source: processor_socket
+        target: /run/yuki
+        read_only: true
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      supervisor:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    read_only: true
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+  web:
+    image: ${YUKI_WEB_IMAGE:?Select a release web image}
+    restart: unless-stopped
+    ports:
+      - "${YUKI_HTTP_BIND_ADDRESS:-127.0.0.1}:${YUKI_HTTP_PORT:-8080}:8080"
+    networks: [edge, application]
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    read_only: true
+    tmpfs: ["/tmp:size=16m,mode=1777"]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+
+networks:
+  edge:
+  outbound:
+  application:
+    internal: true
+  data:
+    internal: true
+
+volumes:
+  postgres_data:
+  storage_data:
+  processor_socket:
+  processor_workspace:
+    name: ${YUKI_PROCESSOR_WORKSPACE_VOLUME:?}

@@ -57,6 +57,12 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 
 All tasks not listed above remain blocked by the DAG.
 
+### Post-MVP production deployment
+
+| Issue | Status | Note |
+| --- | --- | --- |
+| #3 | Implementation verified; first v2 release pending | Production Compose now runs the supervisor in-stack, uses four digest-pinned release images, validates configuration before startup, and passed local candidate image, processor, migration-order, restart, and persistence checks. Publication and supported-platform release acceptance remain in #7. |
+
 ### Deferred work
 
 | ID | Decision | MVP effect |

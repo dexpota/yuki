@@ -23,7 +23,7 @@ describe('maintenance deployment workflow', () => {
     expect(script.indexOf('maintenance verify')).toBeLessThan(script.indexOf('pg_restore'));
     expect(script.indexOf('pg_restore')).toBeLessThan(script.indexOf('maintenance integrity'));
     expect(script.indexOf('maintenance integrity')).toBeLessThan(
-      script.indexOf('compose up --detach api worker proxy'),
+      script.indexOf('compose up --detach api worker "$edge_service"'),
     );
   });
 

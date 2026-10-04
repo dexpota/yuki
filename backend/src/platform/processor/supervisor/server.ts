@@ -29,6 +29,7 @@ export interface ProcessorSupervisorConfiguration {
   readonly socketMode?: number;
   readonly authenticationToken: string;
   readonly workspaceRoot: string;
+  readonly workspaceVolume?: string;
   readonly maximumInputBytes: number;
   readonly maximumOutputBytes: number;
   readonly maximumOutputFiles: number;
@@ -142,13 +143,15 @@ export class ProcessorSupervisor {
       try {
         workspace = await mkdtemp(join(resolve(this.configuration.workspaceRoot), 'request-'));
         await chmod(workspace, 0o700);
-        const inputPath = join(workspace, inputName(header.operation));
+        const inputRoot = this.configuration.workspaceVolume ? join(workspace, 'input') : workspace;
+        if (this.configuration.workspaceVolume) await mkdir(inputRoot, { mode: 0o755 });
+        const inputPath = join(inputRoot, inputName(header.operation));
         await writeInput(inputPath, reader, header.inputBytes);
         await chmod(inputPath, 0o444);
         const outputRoot = join(workspace, 'output');
         await mkdir(outputRoot, { mode: 0o777 });
         await chmod(outputRoot, 0o777);
-        const response = await this.#run(header, inputPath, outputRoot);
+        const response = await this.#run(header, workspace, inputPath, outputRoot);
         if (!response.ok) {
           await sendFailure(
             socket,
@@ -199,15 +202,34 @@ export class ProcessorSupervisor {
 
   #run(
     header: SupervisorRequestHeader,
+    workspace: string,
     inputPath: string,
     outputRoot: string,
   ): Promise<ProcessorResponse<unknown>> {
     const request = processorRequest(header);
-    const mounts: ProcessorFileMount[] = [
-      { hostPath: inputPath, containerPath: inputTarget(header.operation), writable: false },
-    ];
+    const volumeName = this.configuration.workspaceVolume;
+    const requestDirectory = basename(workspace);
+    const mounts: ProcessorFileMount[] = volumeName
+      ? [
+          {
+            volumeName,
+            volumeSubpath: `${requestDirectory}/input`,
+            containerPath: '/input',
+            writable: false,
+          },
+        ]
+      : [{ hostPath: inputPath, containerPath: inputTarget(header.operation), writable: false }];
     if (header.operation === 'extract-zip' || header.operation === 'generate-preview')
-      mounts.push({ hostPath: outputRoot, containerPath: '/output', writable: true });
+      mounts.push(
+        volumeName
+          ? {
+              volumeName,
+              volumeSubpath: `${requestDirectory}/output`,
+              containerPath: '/output',
+              writable: true,
+            }
+          : { hostPath: outputRoot, containerPath: '/output', writable: true },
+      );
     return this.#execute(request, this.configuration.runner, {}, mounts);
   }
 }
@@ -457,6 +479,11 @@ function validateConfiguration(configuration: ProcessorSupervisorConfiguration):
     basename(configuration.workspaceRoot).length === 0
   )
     throw new TypeError('Supervisor workspace root is invalid');
+  if (
+    configuration.workspaceVolume !== undefined &&
+    !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(configuration.workspaceVolume)
+  )
+    throw new TypeError('Supervisor workspace volume is invalid');
 }
 
 function validateEndpoint(configuration: ProcessorSupervisorConfiguration): void {

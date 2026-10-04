@@ -371,8 +371,8 @@ Restore targets a clean installation, verifies database and object checksums, ru
 
 The planned production Compose project contains:
 
-- `proxy`: the only host-exposed HTTP(S) service;
-- `web`: static UI assets, or assets mounted into the proxy;
+- `web`: compiled UI assets and the only host-exposed production edge,
+  proxying API requests;
 - `api`: REST, SSE, and download/upload streaming;
 - `worker`: background jobs and printer reconciliation;
 - `supervisor`: a Compose-managed broker that alone may access the container
@@ -381,7 +381,14 @@ The planned production Compose project contains:
 - `postgres`: persistent database volume;
 - `storage`: persistent local asset volume; optional S3 configuration replaces asset writes, not PostgreSQL.
 
-Only the proxy publishes a host port. PostgreSQL and internal services remain on a private Compose network. OctoPrint and optional external notification/S3 destinations are the only necessary outbound targets during normal operation.
+Only the production web edge publishes a host port. PostgreSQL and internal
+services remain on a private Compose network. OctoPrint and optional external
+notification/S3 destinations are the only necessary outbound targets during
+normal operation.
+
+Development retains a separate Caddy proxy. Production's released web image
+serves the static UI and proxies API requests so a stack manager needs no host
+configuration-file bind mount.
 
 The production supervisor is managed by the same Compose project as the other
 long-running services. The worker reaches it through an authenticated local

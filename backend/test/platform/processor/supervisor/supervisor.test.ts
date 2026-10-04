@@ -7,6 +7,7 @@ import { Readable } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ProcessorResponse } from '../../../../src/platform/processor/contract.js';
+import { buildDockerArguments } from '../../../../src/platform/processor/runner.js';
 import {
   encodeHeader,
   ProcessorSupervisor,
@@ -67,6 +68,92 @@ describe('processor supervisor IPC', () => {
     await execution.cleanup();
     expect(await readdir(fixture.responseWorkspaces)).toEqual([]);
     await fixture.close();
+  });
+
+  it('mounts only one request subdirectory from a Docker volume', async () => {
+    const fixture = await setup(
+      async (request, _configuration, _dependencies, mounts) => {
+        const input = mounts.find((mount) => mount.containerPath === '/input');
+        const output = mounts.find((mount) => mount.containerPath === '/output');
+        expect(input).toMatchObject({
+          volumeName: 'yuki_test_jobs',
+          writable: false,
+        });
+        expect(output).toMatchObject({
+          volumeName: 'yuki_test_jobs',
+          writable: true,
+        });
+        const requestDirectory = input?.volumeSubpath?.split('/')[0];
+        expect(input?.volumeSubpath).toBe(`${requestDirectory}/input`);
+        expect(output?.volumeSubpath).toBe(`${requestDirectory}/output`);
+        expect(
+          await readFile(
+            join(fixture.hostWorkspaces, requestDirectory ?? '', 'input', 'archive.zip'),
+            'utf8',
+          ),
+        ).toBe('archive bytes');
+        const outputDirectory = join(fixture.hostWorkspaces, requestDirectory ?? '', 'output');
+        await mkdir(join(outputDirectory, 'archive'), { recursive: true });
+        await writeFile(join(outputDirectory, 'archive', 'part.stl'), 'mesh');
+        const arguments_ = buildDockerArguments(
+          {
+            image: `processor@sha256:${'a'.repeat(64)}`,
+            timeoutMs: 1_000,
+            terminationGraceMs: 10,
+            memory: '128m',
+            cpus: 1,
+            pidsLimit: 16,
+            workspaceSize: '64m',
+          },
+          mounts,
+        );
+        expect(arguments_.join(' ')).toContain(
+          `type=volume,source=yuki_test_jobs,volume-subpath=${requestDirectory}/input,target=/input,readonly`,
+        );
+        expect(arguments_.join(' ')).not.toContain(fixture.hostWorkspaces);
+        return success(request.requestId, {
+          members: [{ path: 'part.stl', size: 4, checksum: sha256('mesh') }],
+          expandedBytes: 4,
+        });
+      },
+      5_000,
+      'yuki_test_jobs',
+    );
+    const execution = await fixture.client.execute({
+      requestId: 'volume-archive',
+      operation: 'extract-zip',
+      inputBytes: 13,
+      input: Readable.from(['archive bytes']),
+      limits: archiveLimits(),
+    });
+    expect(await streamText(execution.outputs[0]?.open())).toBe('mesh');
+    await expectEmpty(fixture.hostWorkspaces);
+    await execution.cleanup();
+    await fixture.close();
+  });
+
+  it('rejects a processor volume mapped to the wrong input or output target', () => {
+    expect(() =>
+      buildDockerArguments(
+        {
+          image: `processor@sha256:${'a'.repeat(64)}`,
+          timeoutMs: 1_000,
+          terminationGraceMs: 10,
+          memory: '128m',
+          cpus: 1,
+          pidsLimit: 16,
+          workspaceSize: '64m',
+        },
+        [
+          {
+            volumeName: 'yuki_test_jobs',
+            volumeSubpath: 'request-one/output',
+            containerPath: '/input',
+            writable: false,
+          },
+        ],
+      ),
+    ).toThrow('Processor file mount is invalid');
   });
 
   it('supports an authenticated loopback TCP endpoint for Docker Desktop bridging', async () => {
@@ -310,6 +397,7 @@ describe('processor supervisor IPC', () => {
 async function setup(
   execute: NonNullable<ProcessorSupervisorDependencies['execute']>,
   requestTimeoutMs = 5_000,
+  workspaceVolume?: string,
 ) {
   const root = await temporaryRoot();
   const socketPath = join(root, 'processor.sock');
@@ -321,6 +409,7 @@ async function setup(
       socketMode: 0o600,
       authenticationToken: token,
       workspaceRoot: hostWorkspaces,
+      ...(workspaceVolume ? { workspaceVolume } : {}),
       maximumInputBytes: 1024 * 1024,
       maximumOutputBytes: 1024 * 1024,
       maximumOutputFiles: 500,

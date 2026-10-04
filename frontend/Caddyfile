@@ -7,12 +7,30 @@
 	encode zstd gzip
 	root * /srv
 
-	@versionedAssets path /assets/*
-	header @versionedAssets Cache-Control "public, max-age=31536000, immutable"
+	handle /healthz {
+		respond "ok" 200
+	}
 
-	@notVersionedAssets not path /assets/*
-	header @notVersionedAssets Cache-Control "no-cache"
+	handle /api/* {
+		reverse_proxy api:3000
+	}
 
-	try_files {path} /index.html
-	file_server
+	handle /health/* {
+		reverse_proxy api:3000
+	}
+
+	handle /diagnostics/* {
+		reverse_proxy api:3000
+	}
+
+	handle {
+		@versionedAssets path /assets/*
+		header @versionedAssets Cache-Control "public, max-age=31536000, immutable"
+
+		@notVersionedAssets not path /assets/*
+		header @notVersionedAssets Cache-Control "no-cache"
+
+		try_files {path} /index.html
+		file_server
+	}
 }

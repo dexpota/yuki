@@ -64,9 +64,11 @@ The backend, frontend, processor, and processor bridge run as non-root users.
 Migration and application services drop all capabilities, prevent privilege
 escalation, and use read-only root filesystems with narrow writable volumes or
 temporary filesystems. Runtime commands invoke built Node entry points directly
-and do not bootstrap a package manager. Application containers never receive
-the Docker socket; the processor supervisor alone launches the fixed,
-digest-pinned restricted processor operation.
+and do not bootstrap a package manager. API and worker containers never
+receive the Docker socket; the processor supervisor alone launches the fixed,
+digest-pinned restricted processor operation. The production supervisor is a
+trusted Compose service with Docker access and a single file-cleanup
+capability; see ADR-0008.
 
 Before a release, validate the fully rendered Compose configuration.
 Production-image publication runs

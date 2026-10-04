@@ -1,6 +1,6 @@
 # ADR-0008: Compose-managed processor supervisor
 
-Status: accepted for the production deployment; not yet implemented
+Status: accepted and implemented in the repository; first v2 release pending
 
 ## Context
 
@@ -41,12 +41,12 @@ container being interpreted as the same path by the Docker daemon.
 The supervisor needs its own versioned container image with the runtime client
 it uses to launch processor jobs. Release publication and release metadata must
 include this image and verify that all four Yuki images come from the same
-source revision. The current three-image `release-images.json` v1 contract
-remains unchanged until a versioned successor is implemented.
+source revision. The three-image `release-images.json` v1 contract remains a
+historical format; future releases use v2 with the fourth image.
 
 The existing development host-supervisor and Docker Desktop bridge remain
 accurate descriptions of the current implementation. Production deployment
-work will replace that topology for production; development may migrate to the
+uses the Compose-managed topology; development may migrate to the
 same Compose-managed topology after it has been verified.
 
 ## Consequences

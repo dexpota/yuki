@@ -39,8 +39,10 @@ export interface ProcessorRunnerDependencies {
 }
 
 export interface ProcessorFileMount {
-  readonly hostPath: string;
-  readonly containerPath: `/input/${string}` | '/output' | `/output/${string}`;
+  readonly hostPath?: string;
+  readonly volumeName?: string;
+  readonly volumeSubpath?: string;
+  readonly containerPath: '/input' | `/input/${string}` | '/output' | `/output/${string}`;
   readonly writable: boolean;
 }
 
@@ -169,9 +171,13 @@ export function buildDockerArguments(
     '--log-driver=none',
   ];
   for (const mount of mounts) {
+    const source =
+      mount.hostPath !== undefined
+        ? `type=bind,source=${mount.hostPath}`
+        : `type=volume,source=${mount.volumeName},volume-subpath=${mount.volumeSubpath}`;
     arguments_.push(
       '--mount',
-      `type=bind,source=${mount.hostPath},target=${mount.containerPath}${mount.writable ? '' : ',readonly'}`,
+      `${source},target=${mount.containerPath}${mount.writable ? '' : ',readonly'}`,
     );
   }
   arguments_.push(configuration.image);
@@ -203,13 +209,23 @@ function validateMounts(mounts: readonly ProcessorFileMount[]): void {
   for (const mount of mounts) {
     const normalizedTarget = posix.normalize(mount.containerPath);
     const targetIsAllowed =
+      mount.containerPath === '/input' ||
       mount.containerPath === '/output' ||
       /^\/(input|output)\/[A-Za-z0-9._/-]+$/.test(mount.containerPath);
-    const isInput = mount.containerPath.startsWith('/input/');
+    const isInput = mount.containerPath === '/input' || mount.containerPath.startsWith('/input/');
     const modeIsAllowed = (isInput && !mount.writable) || (!isInput && mount.writable);
+    const bind = mount.hostPath !== undefined;
+    const volume = mount.volumeName !== undefined || mount.volumeSubpath !== undefined;
+    const validBind =
+      bind && isAbsolute(mount.hostPath ?? '') && !/[,\r\n]/.test(mount.hostPath ?? '');
+    const validVolume =
+      volume &&
+      /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(mount.volumeName ?? '') &&
+      /^[a-zA-Z0-9_-]+\/(input|output)$/.test(mount.volumeSubpath ?? '') &&
+      mount.volumeSubpath?.endsWith(isInput ? '/input' : '/output') === true;
     if (
-      !isAbsolute(mount.hostPath) ||
-      /[,\r\n]/.test(mount.hostPath) ||
+      bind === volume ||
+      (!validBind && !validVolume) ||
       !targetIsAllowed ||
       normalizedTarget !== mount.containerPath ||
       mount.containerPath.includes('/../') ||

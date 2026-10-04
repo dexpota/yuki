@@ -51,3 +51,15 @@ RUN chmod -R a=rX /app \
 
 USER node
 CMD ["node", "dist/api-main.js"]
+
+FROM docker:29.1.3-cli AS docker-cli
+
+FROM production AS supervisor
+
+LABEL org.opencontainers.image.title="Yuki processor supervisor" \
+  org.opencontainers.image.description="Restricted broker for short-lived Yuki processor containers"
+
+USER root
+COPY --from=docker-cli /usr/local/bin/docker /usr/local/bin/docker
+RUN docker --version
+CMD ["node", "dist/processor-supervisor-main.js"]

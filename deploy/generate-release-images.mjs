@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 
-const imageNames = ['backend', 'web', 'processor'];
+const imageNames = ['backend', 'web', 'processor', 'supervisor'];
 const digestPattern = /^sha256:[a-f0-9]{64}$/;
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const revisionPattern = /^[a-f0-9]{40}$/;
@@ -59,7 +59,7 @@ const images = {};
 for (const name of imageNames) images[name] = await imageDescriptor(name);
 
 const manifest = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   release: { version, tag, sourceRevision, sourceRepository, createdAt },
   images,
 };

@@ -16,16 +16,27 @@ if [ ! -f "$backup" ]; then
 fi
 
 deploy_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+compose_file=${YUKI_COMPOSE_FILE:-$deploy_dir/compose.yaml}
+project_dir=$(dirname -- "$compose_file")
+case "$compose_file" in
+  */production/compose.yaml) edge_service=web ;;
+  *) edge_service=proxy ;;
+esac
 dump=$(mktemp "${TMPDIR:-/tmp}/yuki-restore.XXXXXX")
 drain_seconds=${YUKI_MAINTENANCE_DRAIN_SECONDS:-120}
 
 compose() {
-  if [ -n "${YUKI_COMPOSE_ENV_FILE:-}" ]; then
-    docker compose --env-file "$YUKI_COMPOSE_ENV_FILE" \
-      --project-directory "$deploy_dir" --file "$deploy_dir/compose.yaml" "$@"
-  else
-    docker compose --project-directory "$deploy_dir" --file "$deploy_dir/compose.yaml" "$@"
+  set -- --project-directory "$project_dir" --file "$compose_file" "$@"
+  if [ -n "${YUKI_COMPOSE_PROJECT_NAME:-}" ]; then
+    set -- --project-name "$YUKI_COMPOSE_PROJECT_NAME" "$@"
   fi
+  if [ -n "${YUKI_COMPOSE_RELEASE_ENV_FILE:-}" ]; then
+    set -- --env-file "$YUKI_COMPOSE_RELEASE_ENV_FILE" "$@"
+  fi
+  if [ -n "${YUKI_COMPOSE_ENV_FILE:-}" ]; then
+    set -- --env-file "$YUKI_COMPOSE_ENV_FILE" "$@"
+  fi
+  docker compose "$@"
 }
 
 cleanup() {
@@ -39,7 +50,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 echo "Entering maintenance window..." >&2
-compose stop --timeout "$drain_seconds" proxy
+compose stop --timeout "$drain_seconds" "$edge_service"
 compose stop --timeout "$drain_seconds" api worker
 compose up --detach postgres >/dev/null
 
@@ -65,7 +76,7 @@ compose run --rm -T migrate
 compose run --rm --no-deps -T maintenance integrity
 
 echo "Restore verified; enabling writes..." >&2
-compose up --detach api worker proxy >/dev/null
+compose up --detach api worker "$edge_service" >/dev/null
 trap - EXIT HUP INT TERM
 rm -f -- "$dump"
 echo "Restore completed."

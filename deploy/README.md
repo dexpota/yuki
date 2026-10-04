@@ -1,5 +1,7 @@
 # Development deployment
 
+For the Compose-only production target, see [PRODUCTION.md](./PRODUCTION.md).
+
 This directory owns Yuki's Docker Compose development deployment. It starts the
 Vite web application, API, import worker, PostgreSQL, and Caddy. A one-shot
 service applies pending migrations before the API and worker start. A narrow

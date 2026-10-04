@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 const execute = promisify(execFile);
 const repositoryRoot = join(process.cwd(), '..');
 const generator = join(repositoryRoot, 'deploy', 'generate-release-images.mjs');
+const selector = join(repositoryRoot, 'deploy', 'select-release.mjs');
 const digest = (character: string) => `sha256:${character.repeat(64)}`;
 const temporaryDirectories: string[] = [];
 
@@ -23,7 +24,7 @@ describe('release image manifest generator', () => {
 
     const manifest = JSON.parse(await readFile(join(directory, 'release-images.json'), 'utf8'));
     expect(manifest).toMatchObject({
-      schemaVersion: 1,
+      schemaVersion: 2,
       release: {
         version: '1.2.3',
         tag: '1.2.3',
@@ -58,6 +59,34 @@ describe('release image manifest generator', () => {
   });
 });
 
+describe('production release selection', () => {
+  it('selects only the four digest-pinned images from one v2 release', async () => {
+    const directory = await fixtureDirectory();
+    const manifestPath = join(directory, 'release-images.json');
+    const outputPath = join(directory, 'selected.env');
+    await execute(process.execPath, [generator], { env: environment(directory) });
+    await execute(process.execPath, [selector, manifestPath, outputPath]);
+    const selected = await readFile(outputPath, 'utf8');
+    expect(selected).toContain('YUKI_RELEASE_VERSION=1.2.3\n');
+    for (const name of ['backend', 'web', 'processor', 'supervisor'])
+      expect(selected).toContain(
+        `YUKI_${name.toUpperCase()}_IMAGE=ghcr.io/dexpota/yuki-${name}@sha256:`,
+      );
+  });
+
+  it('rejects an old or mixed release manifest', async () => {
+    const directory = await fixtureDirectory();
+    const manifestPath = join(directory, 'release-images.json');
+    await execute(process.execPath, [generator], { env: environment(directory) });
+    const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+    manifest.images.supervisor.tag = 'ghcr.io/dexpota/yuki-supervisor:9.9.9';
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await expect(
+      execute(process.execPath, [selector, manifestPath, join(directory, 'invalid.env')]),
+    ).rejects.toThrow('Invalid supervisor image');
+  });
+});
+
 async function fixtureDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'yuki-release-images-'));
   temporaryDirectories.push(directory);
@@ -69,7 +98,7 @@ async function fixtureDirectory(): Promise<string> {
     ],
   };
   await Promise.all(
-    ['backend', 'web', 'processor'].map((name) =>
+    ['backend', 'web', 'processor', 'supervisor'].map((name) =>
       writeFile(join(directory, `${name}.json`), JSON.stringify(index)),
     ),
   );
@@ -86,7 +115,7 @@ function environment(directory: string): NodeJS.ProcessEnv {
     YUKI_RELEASE_CREATED_AT: '2026-09-28T12:00:00Z',
     YUKI_RELEASE_IMAGES_OUTPUT: join(directory, 'release-images.json'),
   };
-  for (const [index, name] of ['backend', 'web', 'processor'].entries()) {
+  for (const [index, name] of ['backend', 'web', 'processor', 'supervisor'].entries()) {
     const prefix = `YUKI_${name.toUpperCase()}`;
     values[`${prefix}_TAG`] = `ghcr.io/dexpota/yuki-${name}:1.2.3`;
     values[`${prefix}_REFERENCE`] = `ghcr.io/dexpota/yuki-${name}@${digest(

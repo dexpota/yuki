@@ -16,6 +16,12 @@ if [ -e "$output" ]; then
 fi
 
 deploy_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+compose_file=${YUKI_COMPOSE_FILE:-$deploy_dir/compose.yaml}
+project_dir=$(dirname -- "$compose_file")
+case "$compose_file" in
+  */production/compose.yaml) edge_service=web ;;
+  *) edge_service=proxy ;;
+esac
 mkdir -p -- "$(dirname -- "$output")"
 dump=$(mktemp "${TMPDIR:-/tmp}/yuki-database.XXXXXX")
 partial=$(mktemp "${output}.partial.XXXXXX")
@@ -24,12 +30,17 @@ writers_stopped=0
 running_services=
 
 compose() {
-  if [ -n "${YUKI_COMPOSE_ENV_FILE:-}" ]; then
-    docker compose --env-file "$YUKI_COMPOSE_ENV_FILE" \
-      --project-directory "$deploy_dir" --file "$deploy_dir/compose.yaml" "$@"
-  else
-    docker compose --project-directory "$deploy_dir" --file "$deploy_dir/compose.yaml" "$@"
+  set -- --project-directory "$project_dir" --file "$compose_file" "$@"
+  if [ -n "${YUKI_COMPOSE_PROJECT_NAME:-}" ]; then
+    set -- --project-name "$YUKI_COMPOSE_PROJECT_NAME" "$@"
   fi
+  if [ -n "${YUKI_COMPOSE_RELEASE_ENV_FILE:-}" ]; then
+    set -- --env-file "$YUKI_COMPOSE_RELEASE_ENV_FILE" "$@"
+  fi
+  if [ -n "${YUKI_COMPOSE_ENV_FILE:-}" ]; then
+    set -- --env-file "$YUKI_COMPOSE_ENV_FILE" "$@"
+  fi
+  docker compose "$@"
 }
 
 was_running() {
@@ -44,7 +55,7 @@ $1
 }
 
 resume_services() {
-  for service in api worker proxy; do
+  for service in api worker "$edge_service"; do
     if was_running "$service"; then
       compose start "$service" >/dev/null
     fi
@@ -67,8 +78,8 @@ trap cleanup EXIT HUP INT TERM
 
 running_services=$(compose ps --status running --services)
 echo "Entering maintenance window and draining writers..." >&2
-if was_running proxy; then
-  compose stop --timeout "$drain_seconds" proxy
+if was_running "$edge_service"; then
+  compose stop --timeout "$drain_seconds" "$edge_service"
 fi
 for service in api worker; do
   if was_running "$service"; then

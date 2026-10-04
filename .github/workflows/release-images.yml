@@ -98,6 +98,15 @@ jobs:
               --tag "yuki-${role}:release-smoke" \
               .
           done
+          docker build \
+            --file backend/Dockerfile \
+            --platform "$PLATFORM" \
+            --target supervisor \
+            --build-arg "VERSION=$VERSION" \
+            --build-arg "REVISION=$REVISION" \
+            --build-arg "CREATED=$CREATED" \
+            --tag yuki-supervisor:release-smoke \
+            .
       - name: Smoke production images
         env:
           YUKI_EXPECTED_REVISION: ${{ needs.validate.outputs.revision }}
@@ -107,6 +116,11 @@ jobs:
           ./deploy/smoke-release-image.sh backend yuki-backend:release-smoke
           ./deploy/smoke-release-image.sh web yuki-frontend:release-smoke
           ./deploy/smoke-release-image.sh processor yuki-processor:release-smoke
+          ./deploy/smoke-release-image.sh supervisor yuki-supervisor:release-smoke
+          node deploy/smoke-compose-supervisor.mjs \
+            yuki-supervisor:release-smoke \
+            yuki-backend:release-smoke \
+            yuki-processor:release-smoke
 
   publish:
     name: Publish exact release images
@@ -121,6 +135,7 @@ jobs:
     env:
       BACKEND_IMAGE: ghcr.io/dexpota/yuki-backend
       PROCESSOR_IMAGE: ghcr.io/dexpota/yuki-processor
+      SUPERVISOR_IMAGE: ghcr.io/dexpota/yuki-supervisor
       WEB_IMAGE: ghcr.io/dexpota/yuki-web
     steps:
       - name: Check out source
@@ -145,7 +160,7 @@ jobs:
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
-          for image in "$BACKEND_IMAGE" "$WEB_IMAGE" "$PROCESSOR_IMAGE"; do
+          for image in "$BACKEND_IMAGE" "$WEB_IMAGE" "$PROCESSOR_IMAGE" "$SUPERVISOR_IMAGE"; do
             if docker buildx imagetools inspect "$image:$VERSION" >/dev/null 2>&1; then
               echo "$image:$VERSION already exists; exact release tags are immutable." >&2
               exit 1
@@ -205,6 +220,24 @@ jobs:
           cache-to: type=gha,mode=max,scope=processor-release
           provenance: mode=max
           sbom: true
+      - name: Publish supervisor image
+        id: supervisor
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: backend/Dockerfile
+          target: supervisor
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ env.SUPERVISOR_IMAGE }}:${{ needs.validate.outputs.version }}
+          build-args: |
+            VERSION=${{ needs.validate.outputs.version }}
+            REVISION=${{ needs.validate.outputs.revision }}
+            CREATED=${{ needs.validate.outputs.created }}
+          cache-from: type=gha,scope=supervisor-release
+          cache-to: type=gha,mode=max,scope=supervisor-release
+          provenance: mode=max
+          sbom: true
       - name: Record index and platform digests
         env:
           YUKI_BACKEND_INDEX_FILE: backend-index.json
@@ -213,6 +246,9 @@ jobs:
           YUKI_PROCESSOR_INDEX_FILE: processor-index.json
           YUKI_PROCESSOR_REFERENCE: ${{ env.PROCESSOR_IMAGE }}@${{ steps.processor.outputs.digest }}
           YUKI_PROCESSOR_TAG: ${{ env.PROCESSOR_IMAGE }}:${{ needs.validate.outputs.version }}
+          YUKI_SUPERVISOR_INDEX_FILE: supervisor-index.json
+          YUKI_SUPERVISOR_REFERENCE: ${{ env.SUPERVISOR_IMAGE }}@${{ steps.supervisor.outputs.digest }}
+          YUKI_SUPERVISOR_TAG: ${{ env.SUPERVISOR_IMAGE }}:${{ needs.validate.outputs.version }}
           YUKI_RELEASE_CREATED_AT: ${{ github.event.release.published_at }}
           YUKI_RELEASE_IMAGES_OUTPUT: release-images.json
           YUKI_RELEASE_TAG: ${{ needs.validate.outputs.tag }}
@@ -227,29 +263,43 @@ jobs:
           docker buildx imagetools inspect "$YUKI_BACKEND_REFERENCE" --raw > "$YUKI_BACKEND_INDEX_FILE"
           docker buildx imagetools inspect "$YUKI_WEB_REFERENCE" --raw > "$YUKI_WEB_INDEX_FILE"
           docker buildx imagetools inspect "$YUKI_PROCESSOR_REFERENCE" --raw > "$YUKI_PROCESSOR_INDEX_FILE"
+          docker buildx imagetools inspect "$YUKI_SUPERVISOR_REFERENCE" --raw > "$YUKI_SUPERVISOR_INDEX_FILE"
           node deploy/generate-release-images.mjs
-      - name: Retain release image manifest
+      - name: Package production deployment files
+        run: |
+          tar --create --gzip --file yuki-deployment-v2.tar.gz \
+            deploy/production/compose.yaml \
+            deploy/.env.production.example \
+            deploy/select-release.mjs \
+            deploy/PRODUCTION.md \
+            deploy/backup.sh \
+            deploy/restore.sh \
+            docs/FULL-BACKUP-FORMAT.md \
+            docs/ADR-0008-compose-managed-processor-supervisor.md
+      - name: Retain release deployment artifacts
         uses: actions/upload-artifact@v4.6.2
         with:
           name: release-images-${{ needs.validate.outputs.version }}
-          path: release-images.json
+          path: |
+            release-images.json
+            yuki-deployment-v2.tar.gz
           if-no-files-found: error
           retention-days: 90
 
   attach-release-manifest:
-    name: Attach image manifest to release
+    name: Attach deployment artifacts to release
     if: needs.validate.outputs.publish == 'true'
     needs: [validate, publish]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
-      - name: Download release image manifest
+      - name: Download release deployment artifacts
         uses: actions/download-artifact@v4.3.0
         with:
           name: release-images-${{ needs.validate.outputs.version }}
-      - name: Attach image manifest to release
+      - name: Attach deployment artifacts to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ needs.validate.outputs.tag }}
-        run: gh release upload "$RELEASE_TAG" release-images.json --repo "$GITHUB_REPOSITORY"
+        run: gh release upload "$RELEASE_TAG" release-images.json yuki-deployment-v2.tar.gz --repo "$GITHUB_REPOSITORY"

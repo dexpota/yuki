@@ -6,7 +6,7 @@ role=${1:-}
 image=${2:-}
 
 if [ -z "$role" ] || [ -z "$image" ]; then
-  echo "usage: $0 <backend|web|processor> <image>" >&2
+  echo "usage: $0 <backend|web|processor|supervisor> <image>" >&2
   exit 64
 fi
 
@@ -151,10 +151,24 @@ EOF
   printf '%s\n' "$response" | grep '"kind":"geometry"' >/dev/null
 }
 
+smoke_supervisor() {
+  assert_metadata root
+  docker run --rm --network none --read-only --cap-drop ALL \
+    --security-opt no-new-privileges:true --entrypoint /usr/local/bin/docker \
+    "$image" --version
+  docker run --rm --network none --read-only --cap-drop ALL \
+    --security-opt no-new-privileges:true --entrypoint node \
+    "$image" --input-type=module --eval "
+      import { access } from 'node:fs/promises';
+      await access('dist/processor-supervisor-main.js');
+    "
+}
+
 case "$role" in
   backend) smoke_backend ;;
   web) smoke_web ;;
   processor) smoke_processor ;;
+  supervisor) smoke_supervisor ;;
   *)
     echo "Unknown image role '$role'." >&2
     exit 64
