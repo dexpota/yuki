@@ -27,12 +27,15 @@ Exact image tags are immutable. The workflow checks that all four tags are
 absent before building and refuses to replace an existing tag. If publication
 is interrupted after only some images reach the registry, remove those partial
 release artifacts before rerunning the workflow; never replace an image from a
-completed release.
+completed release. If the workflow itself is defective at the tagged commit,
+publish a new patch release from the fix rather than moving the existing tag.
 
 Each image supports `linux/amd64` and `linux/arm64`. The release workflow runs
 the image smoke suite on native GitHub-hosted runners for both architectures
-before publication. Native installation and upgrade acceptance remains a
-separate release gate.
+before publication. It also builds and pushes each platform on its matching
+native runner, then combines the resulting digests into the immutable release
+tags. The ARM64 processor build does not run under QEMU. Native installation
+and upgrade acceptance remains a separate release gate.
 
 The four GHCR packages must be configured as public packages before the first
 supported release. Registry visibility is an explicit release preflight because

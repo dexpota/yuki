@@ -122,15 +122,13 @@ jobs:
             yuki-backend:release-smoke \
             yuki-processor:release-smoke
 
-  publish:
-    name: Publish exact release images
+  publish-preflight:
+    name: Refuse existing release tags
     if: needs.validate.outputs.publish == 'true'
     needs: [validate, smoke]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      # BuildKit's registry attestations use OIDC identity and package writes.
-      id-token: write
       packages: write
     env:
       BACKEND_IMAGE: ghcr.io/dexpota/yuki-backend
@@ -138,21 +136,12 @@ jobs:
       SUPERVISOR_IMAGE: ghcr.io/dexpota/yuki-supervisor
       WEB_IMAGE: ghcr.io/dexpota/yuki-web
     steps:
-      - name: Check out source
-        uses: actions/checkout@v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.release.tag_name }}
       - name: Sign in to GHCR
         uses: docker/login-action@v3.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3.6.0
-        with:
-          platforms: amd64,arm64
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.11.1
       - name: Refuse mutable release tags
@@ -166,6 +155,45 @@ jobs:
               exit 1
             fi
           done
+
+  publish-platform:
+    name: Publish native ${{ matrix.arch }} image digests
+    if: needs.validate.outputs.publish == 'true'
+    needs: [validate, smoke, publish-preflight]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    env:
+      BACKEND_IMAGE: ghcr.io/dexpota/yuki-backend
+      PROCESSOR_IMAGE: ghcr.io/dexpota/yuki-processor
+      SUPERVISOR_IMAGE: ghcr.io/dexpota/yuki-supervisor
+      WEB_IMAGE: ghcr.io/dexpota/yuki-web
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+      - name: Sign in to GHCR
+        uses: docker/login-action@v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.11.1
       - name: Publish backend image
         id: backend
         uses: docker/build-push-action@v6.18.0
@@ -173,15 +201,14 @@ jobs:
           context: .
           file: backend/Dockerfile
           target: production
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.BACKEND_IMAGE }}:${{ needs.validate.outputs.version }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.BACKEND_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             VERSION=${{ needs.validate.outputs.version }}
             REVISION=${{ needs.validate.outputs.revision }}
             CREATED=${{ needs.validate.outputs.created }}
-          cache-from: type=gha,scope=backend-release
-          cache-to: type=gha,mode=max,scope=backend-release
+          cache-from: type=gha,scope=backend-release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=backend-release-${{ matrix.arch }}
           provenance: mode=max
           sbom: true
       - name: Publish web image
@@ -191,15 +218,14 @@ jobs:
           context: .
           file: frontend/Dockerfile
           target: production
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.WEB_IMAGE }}:${{ needs.validate.outputs.version }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.WEB_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             VERSION=${{ needs.validate.outputs.version }}
             REVISION=${{ needs.validate.outputs.revision }}
             CREATED=${{ needs.validate.outputs.created }}
-          cache-from: type=gha,scope=web-release
-          cache-to: type=gha,mode=max,scope=web-release
+          cache-from: type=gha,scope=web-release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=web-release-${{ matrix.arch }}
           provenance: mode=max
           sbom: true
       - name: Publish processor image
@@ -209,15 +235,14 @@ jobs:
           context: .
           file: processor/Dockerfile
           target: production
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.PROCESSOR_IMAGE }}:${{ needs.validate.outputs.version }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.PROCESSOR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             VERSION=${{ needs.validate.outputs.version }}
             REVISION=${{ needs.validate.outputs.revision }}
             CREATED=${{ needs.validate.outputs.created }}
-          cache-from: type=gha,scope=processor-release
-          cache-to: type=gha,mode=max,scope=processor-release
+          cache-from: type=gha,scope=processor-release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=processor-release-${{ matrix.arch }}
           provenance: mode=max
           sbom: true
       - name: Publish supervisor image
@@ -227,27 +252,105 @@ jobs:
           context: .
           file: backend/Dockerfile
           target: supervisor
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ env.SUPERVISOR_IMAGE }}:${{ needs.validate.outputs.version }}
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.SUPERVISOR_IMAGE }},push-by-digest=true,name-canonical=true,push=true
           build-args: |
             VERSION=${{ needs.validate.outputs.version }}
             REVISION=${{ needs.validate.outputs.revision }}
             CREATED=${{ needs.validate.outputs.created }}
-          cache-from: type=gha,scope=supervisor-release
-          cache-to: type=gha,mode=max,scope=supervisor-release
+          cache-from: type=gha,scope=supervisor-release-${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=supervisor-release-${{ matrix.arch }}
           provenance: mode=max
           sbom: true
+      - name: Record native image digests
+        env:
+          ARCH: ${{ matrix.arch }}
+          BACKEND_DIGEST: ${{ steps.backend.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web.outputs.digest }}
+          PROCESSOR_DIGEST: ${{ steps.processor.outputs.digest }}
+          SUPERVISOR_DIGEST: ${{ steps.supervisor.outputs.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p native-digests
+          for role in BACKEND WEB PROCESSOR SUPERVISOR; do
+            digest_variable="${role}_DIGEST"
+            digest="${!digest_variable}"
+            if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+              echo "Invalid $role digest from native $ARCH build." >&2
+              exit 1
+            fi
+            printf '%s\n' "$digest" > "native-digests/${role,,}"
+          done
+      - name: Upload native image digests
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: native-digests-${{ matrix.arch }}
+          path: native-digests/
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Assemble exact release images
+    if: needs.validate.outputs.publish == 'true'
+    needs: [validate, publish-platform]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      BACKEND_IMAGE: ghcr.io/dexpota/yuki-backend
+      PROCESSOR_IMAGE: ghcr.io/dexpota/yuki-processor
+      SUPERVISOR_IMAGE: ghcr.io/dexpota/yuki-supervisor
+      WEB_IMAGE: ghcr.io/dexpota/yuki-web
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+      - name: Download native image digests
+        uses: actions/download-artifact@v4.3.0
+        with:
+          pattern: native-digests-*
+          path: native-digests
+      - name: Sign in to GHCR
+        uses: docker/login-action@v3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.11.1
+      - name: Assemble multi-platform release tags
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          for role in BACKEND WEB PROCESSOR SUPERVISOR; do
+            image_variable="${role}_IMAGE"
+            image="${!image_variable}"
+            digest_amd64=$(<"native-digests/native-digests-amd64/${role,,}")
+            digest_arm64=$(<"native-digests/native-digests-arm64/${role,,}")
+            for digest in "$digest_amd64" "$digest_arm64"; do
+              if [[ ! "$digest" =~ ^sha256:[a-f0-9]{64}$ ]]; then
+                echo "Invalid native digest for $role." >&2
+                exit 1
+              fi
+            done
+            docker buildx imagetools create \
+              --tag "$image:$VERSION" \
+              --metadata-file "${role,,}-metadata.json" \
+              "$image@$digest_amd64" "$image@$digest_arm64"
+            index_digest=$(jq -er '."containerimage.descriptor".digest | select(test("^sha256:[a-f0-9]{64}$"))' "${role,,}-metadata.json")
+            echo "YUKI_${role}_REFERENCE=$image@$index_digest" >> "$GITHUB_ENV"
+          done
       - name: Record index and platform digests
         env:
           YUKI_BACKEND_INDEX_FILE: backend-index.json
-          YUKI_BACKEND_REFERENCE: ${{ env.BACKEND_IMAGE }}@${{ steps.backend.outputs.digest }}
           YUKI_BACKEND_TAG: ${{ env.BACKEND_IMAGE }}:${{ needs.validate.outputs.version }}
           YUKI_PROCESSOR_INDEX_FILE: processor-index.json
-          YUKI_PROCESSOR_REFERENCE: ${{ env.PROCESSOR_IMAGE }}@${{ steps.processor.outputs.digest }}
           YUKI_PROCESSOR_TAG: ${{ env.PROCESSOR_IMAGE }}:${{ needs.validate.outputs.version }}
           YUKI_SUPERVISOR_INDEX_FILE: supervisor-index.json
-          YUKI_SUPERVISOR_REFERENCE: ${{ env.SUPERVISOR_IMAGE }}@${{ steps.supervisor.outputs.digest }}
           YUKI_SUPERVISOR_TAG: ${{ env.SUPERVISOR_IMAGE }}:${{ needs.validate.outputs.version }}
           YUKI_RELEASE_CREATED_AT: ${{ github.event.release.published_at }}
           YUKI_RELEASE_IMAGES_OUTPUT: release-images.json
@@ -256,7 +359,6 @@ jobs:
           YUKI_SOURCE_REPOSITORY: https://github.com/${{ github.repository }}
           YUKI_SOURCE_REVISION: ${{ needs.validate.outputs.revision }}
           YUKI_WEB_INDEX_FILE: web-index.json
-          YUKI_WEB_REFERENCE: ${{ env.WEB_IMAGE }}@${{ steps.web.outputs.digest }}
           YUKI_WEB_TAG: ${{ env.WEB_IMAGE }}:${{ needs.validate.outputs.version }}
         run: |
           set -euo pipefail
