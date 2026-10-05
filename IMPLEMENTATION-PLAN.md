@@ -61,7 +61,7 @@ All tasks not listed above remain blocked by the DAG.
 
 | Issue | Status | Note |
 | --- | --- | --- |
-| #3 | Implementation verified; first complete v2 release pending | Production Compose runs the supervisor in-stack, uses four digest-pinned release images, and passed local candidate, migration-order, restart, and persistence checks. Release publication now builds both platforms natively after an ARM64 QEMU failure in the incomplete 0.2.0 release; a new release and supported-platform acceptance remain. |
+| #3 | Complete | Release 0.2.1 published four public, digest-pinned AMD64/ARM64 images and the v2 deployment bundle after native-runner builds; the full release workflow passed. Local production-shaped Compose, processor, migration-order, restart, and persistence checks passed. Broader clean-install and upgrade acceptance remains in #7. |
 
 ### Deferred work
 

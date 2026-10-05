@@ -1,6 +1,6 @@
 # ADR-0008: Compose-managed processor supervisor
 
-Status: accepted and implemented in the repository; first v2 release pending
+Status: accepted and implemented; first complete v2 release is 0.2.1
 
 ## Context
 

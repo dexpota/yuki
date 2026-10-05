@@ -11,10 +11,13 @@ four public OCI images to GitHub Container Registry:
 | Supervisor | `ghcr.io/dexpota/yuki-supervisor` | Compose-managed broker for short-lived processor jobs |
 
 Production deployment topology and persistence are specified separately. This
-document defines the next release image contract. Existing v1 releases contain
+document defines the v2 release image contract. Existing v1 releases contain
 only three images and cannot run the production Compose stack. The fourth image
 and v2 manifest follow
 [ADR-0008](./ADR-0008-compose-managed-processor-supervisor.md).
+
+`0.2.1` is the first complete v2 release. The interrupted `0.2.0` publication
+has no deployment manifest or bundle and is not a supported production install.
 
 ## Release and tag policy
 
