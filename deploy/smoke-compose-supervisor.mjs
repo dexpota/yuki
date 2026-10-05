@@ -99,13 +99,22 @@ try {
       await result.cleanup();
     }
     const geometry = 'solid triangle\\nfacet normal 0 0 1\\nouter loop\\nvertex 0 0 0\\nvertex 1 0 0\\nvertex 0 1 0\\nendloop\\nendfacet\\nendsolid triangle\\n';
-    const preview = await client.execute({
-      requestId: 'preview-job', operation: 'generate-preview', format: 'stl',
-      inputBytes: Buffer.byteLength(geometry), input: Readable.from([geometry]),
-      limits: { maximumInputBytes: 1048576, maximumOutputBytes: 16777216,
-        maximumTriangles: 10000, maximumLayers: 1000, maximumSegments: 100000 },
-    });
-    if (preview.outputs.length < 1) throw new Error('Missing generated preview');
+    let preview;
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      try {
+        preview = await client.execute({
+          requestId: 'preview-job-' + attempt, operation: 'generate-preview', format: 'stl',
+          inputBytes: Buffer.byteLength(geometry), input: Readable.from([geometry]),
+          limits: { maximumInputBytes: 1048576, maximumOutputBytes: 16777216,
+            maximumTriangles: 10000, maximumLayers: 1000, maximumSegments: 100000 },
+        });
+        break;
+      } catch (error) {
+        if (error.code !== 'BUSY' || attempt === 9) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+      }
+    }
+    if (!preview || preview.outputs.length < 1) throw new Error('Missing generated preview');
     await preview.cleanup();
     process.stdout.write('Two isolated processor jobs and one generated preview completed.\\n');
   `;
