@@ -55,11 +55,13 @@ jobs:
             publish=false
             tag=0.0.0
           fi
-          echo "created=$created" >> "$GITHUB_OUTPUT"
-          echo "publish=$publish" >> "$GITHUB_OUTPUT"
-          echo "revision=$revision" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          {
+            echo "created=$created"
+            echo "publish=$publish"
+            echo "revision=$revision"
+            echo "tag=$tag"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
 
   smoke:
     name: Smoke ${{ matrix.platform }} images
@@ -409,7 +411,6 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       YUKI_EXPECTED_PRODUCTION_PLATFORM: ${{ matrix.platform }}
-      YUKI_PRODUCTION_ACCEPTANCE_ARTIFACTS: ${{ runner.temp }}/yuki-production-acceptance
     steps:
       - name: Check out candidate source
         uses: actions/checkout@v7.0.1
@@ -447,6 +448,8 @@ jobs:
             --pattern release-images.json --dir previous-release
           echo "Previous supported release: $previous_tag"
       - name: Exercise production installation, restore, and previous-release upgrade
+        env:
+          YUKI_PRODUCTION_ACCEPTANCE_ARTIFACTS: ${{ runner.temp }}/yuki-production-acceptance
         run: |
           ./acceptance/run-production-release.sh \
             candidate-release/release-images.json \
