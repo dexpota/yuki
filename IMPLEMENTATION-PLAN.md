@@ -62,6 +62,10 @@ All tasks not listed above remain blocked by the DAG.
 | Issue | Status | Note |
 | --- | --- | --- |
 | #3 | Complete | Release 0.2.1 published four public, digest-pinned AMD64/ARM64 images and the v2 deployment bundle after native-runner builds; the full release workflow passed. Local production-shaped Compose, processor, migration-order, restart, and persistence checks passed. Broader clean-install and upgrade acceptance remains in #7. |
+| #4 | Complete | Production backup scheduling and retention guidance, configurable dedicated persistent volumes, verified archive publication, secret separation, S3 durability, and restore procedures are documented; focused maintenance/production Compose checks pass. |
+| #5 | Complete | One-shot release updater preflights, locks concurrent runs, pulls and verifies all candidate images, verifies a pre-update backup, atomically retains/swaps image selection, applies migrations once, then checks the Compose supervisor and application readiness. Backend build passed; backend suite passed 199 tests with 65 database-dependent skips. |
+| #6 | Complete | Authenticated system information reports build version and revision, checks a fixed size-bounded GitHub release source with caching, and the settings UI presents all four availability states with release/update links. Backend suite passed 205 tests with 65 database-dependent skips; frontend suite passed 40 tests; typechecks and builds passed. |
+| #7 | In progress | The published 0.2.1 images passed local ARM64 production clean install, all five browser scenarios, restart/migration replay, and backup/clean-volume restore with all 17 objects verified. No earlier v2 release existed for an upgrade. The prerelease workflow now gates future candidates on native AMD64/ARM64 clean-install, restore, and upgrade acceptance. |
 
 ### Deferred work
 

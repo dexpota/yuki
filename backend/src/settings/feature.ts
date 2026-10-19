@@ -9,6 +9,7 @@ import {
   SettingsConflictError,
   type UpdateInstallationSettings,
 } from './service.js';
+import { SystemInformationService } from './system-information.js';
 
 export interface SettingsIdentityBoundary {
   readonly requireOwner: (request: FastifyRequest) => Promise<void>;
@@ -19,6 +20,7 @@ export interface SettingsFeatureOptions {
   readonly database: Kysely<SettingsDatabaseSchema>;
   readonly identity: SettingsIdentityBoundary;
   readonly service?: InstallationSettingsService;
+  readonly systemInformation?: SystemInformationService;
 }
 
 export interface SettingsFeature {
@@ -30,6 +32,12 @@ export function registerSettingsFeature(
   options: SettingsFeatureOptions,
 ): SettingsFeature {
   const service = options.service ?? new InstallationSettingsService(options.database);
+  const systemInformation =
+    options.systemInformation ??
+    new SystemInformationService(
+      process.env.YUKI_VERSION ?? '0.0.0-development',
+      process.env.YUKI_SOURCE_REVISION ?? 'unknown',
+    );
   const authenticated = { preHandler: options.identity.requireOwner };
   const ownerId = (request: FastifyRequest) => options.identity.ownerForRequest(request).owner.id;
   application.get('/api/v1/settings/installation', authenticated, (request) =>
@@ -46,6 +54,7 @@ export function registerSettingsFeature(
       throw error;
     }
   });
+  application.get('/api/v1/system/information', authenticated, () => systemInformation.get());
   return { service };
 }
 

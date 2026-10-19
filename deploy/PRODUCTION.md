@@ -36,6 +36,30 @@ backups of application data. Preserve the master key across upgrades and
 restores. Give `YUKI_PROCESSOR_WORKSPACE_VOLUME` a unique name if multiple
 stacks share one Docker host.
 
+PostgreSQL and local object data use Docker named volumes called
+`YUKI_POSTGRES_VOLUME_NAME` and `YUKI_STORAGE_VOLUME_NAME`. Choose unique names
+for each stack. When these are empty, Compose derives names from the project
+name; the default `production` project retains the existing
+`production_postgres_data` and `production_storage_data` volumes. Keep those
+names when upgrading an existing stack. To place either on a dedicated host
+filesystem, create its named volume with a local bind before the first `up`;
+for example:
+
+```sh
+docker volume create --driver local \
+  --opt type=none --opt o=bind --opt device=/srv/yuki/postgres \
+  yuki_postgres_data
+docker volume create --driver local \
+  --opt type=none --opt o=bind --opt device=/srv/yuki/objects \
+  yuki_storage_data
+```
+
+Create the host directories first and ensure Docker can write to them. Use the
+volume names configured in the environment file. PostgreSQL data, local object
+bytes, the selected Compose release, deployment environment files, and secrets
+are separate persistence or recovery categories. The production web edge is
+stateless and has no proxy data volume.
+
 The production template contains no working secrets. Compose refuses missing
 required variables; a one-shot preflight also rejects the checked-in
 development secrets and mismatched release identity before PostgreSQL or the
@@ -92,6 +116,60 @@ and the completed migration job. The selected release version and source
 revision are in `deploy/.env.release`; `docker image inspect` can display the
 OCI labels of each selected digest.
 
+## Apply a release update
+
+Download the target release's `release-images.json` and deployment bundle.
+Keep the current `.env.release` and all secrets in place. From the deployment
+directory, run the one-shot updater with an explicit version and a new backup
+destination:
+
+```sh
+YUKI_COMPOSE_PROJECT_NAME=production \
+  ./deploy/update-release.sh /secure/downloads/release-images.json 0.2.2 \
+  /srv/yuki-backups/yuki-before-0.2.2.yuki-backup
+```
+
+Set `YUKI_COMPOSE_FILE`, `YUKI_COMPOSE_ENV_FILE`, and
+`YUKI_COMPOSE_RELEASE_ENV_FILE` when the Compose file or private environment
+files are elsewhere. Keep `YUKI_COMPOSE_PROJECT_NAME` identical to the running
+stack name. The updater needs Docker Engine and Compose on the operator's
+machine, but no host Node.js installation or persistent Yuki service. It
+serializes updates with a lock, checks current health and available space,
+validates the manifest and host platform, pulls all four digest-pinned images,
+checks their release labels, and runs a restricted processor smoke operation
+before creating the verified pre-update backup.
+
+Only after those checks pass does it preserve the previous image selection in
+`.env.release.previous`, atomically install the new selection, stop writers,
+run the one-shot migration service, and recreate the Compose-managed supervisor
+and application. It waits for readiness and runs a G-code operation through the
+newly started Compose supervisor. The timestamped command output records the
+selected versions and digests, backup location, migration result, readiness,
+and any failed stage. Set `YUKI_UPDATE_MIN_FREE_KB` to change the default
+1 GiB preflight threshold. If the updater reports an existing lock, confirm no
+update process is running before removing the stale
+`.env.release.update-lock` directory.
+
+For Portainer-managed stacks, use the same release manifest, private
+environment files, Compose project name, and persistent volume names. Run the
+one-shot updater from the Docker host with those settings; it updates the
+existing Compose project and does not install a Yuki daemon. Do not redeploy
+the stack from an older saved image selection after the update.
+
+If preflight, image retrieval, or backup fails, the current stack and release
+selection remain in place. If migration or readiness fails, the updater stops
+the application services, leaves the verified backup and
+`.env.release.previous` available, and reports the failed stage. Use the
+previous image selection only when the new schema remains compatible with that
+release. If migrations are not backward-compatible, restore the verified
+backup into a clean installation with the required secrets and storage
+credentials; `deploy/restore.sh` deliberately refuses to restore over an
+existing database or object store. Never delete the pre-update backup until
+the upgraded installation and a subsequent backup have been verified.
+
+The release gate exercises this same updater from the latest supported release
+before the candidate deployment manifest is attached.
+
 The supervisor alone receives `/var/run/docker.sock`. The worker connects to
 its authenticated Unix socket through a separate shared volume. Processor
 jobs receive only their own input and output volume subdirectories, not the
@@ -108,5 +186,35 @@ selected release environment file. Set `YUKI_COMPOSE_PROJECT_NAME` when the
 stack name differs from the Compose directory name. They do not run as host
 services. Follow the data and secret
 handling requirements in [`FULL-BACKUP-FORMAT.md`](../docs/FULL-BACKUP-FORMAT.md).
-The broader production backup schedule and update workflow are tracked by
-issues #4 and #5.
+Pass an absolute backup destination on a filesystem outside the PostgreSQL,
+object-storage, and deployment directories. The backup script stops writers,
+creates the package with mode `0600`, verifies the completed file, then resumes
+services. A non-zero exit reports failure; an incomplete package is removed.
+
+For automated backups on a Linux host, run the one-shot script from the
+deployment directory with cron, a systemd timer, or the operator's scheduler.
+For example, this daily cron entry stores archives on a separate mounted disk:
+
+```cron
+17 2 * * * cd /opt/yuki && YUKI_COMPOSE_FILE=/opt/yuki/deploy/production/compose.yaml YUKI_COMPOSE_ENV_FILE=/secure/yuki/.env.production YUKI_COMPOSE_RELEASE_ENV_FILE=/opt/yuki/deploy/.env.release YUKI_COMPOSE_PROJECT_NAME=production /opt/yuki/deploy/backup.sh /srv/yuki-backups/yuki-$(date +\%F).yuki-backup
+```
+
+Configure the scheduler to report non-zero exits to an operator (for cron, set
+`MAILTO` to a monitored address) and alert when no new archive appears within
+the expected interval. Keep backups on storage outside the volumes they
+protect, encrypt that destination, and apply a retention policy appropriate to
+the installation. Retention must keep at least one verified backup and must
+not delete the only known-good restore point. A practical starting schedule is
+30 daily and 12 monthly verified archives; apply pruning only after the new
+archive verifies, and retain the latest verified restore point even when it is
+older than the normal window. For S3-backed installs, separately
+replicate or back up the bucket; the archive verifies referenced objects but
+does not copy their bytes. Perform a clean restore rehearsal periodically and
+after changing storage or backup configuration.
+
+Restore verifies the archive before extracting data, requires a clean database
+and object store, applies pending migrations, verifies every restored object,
+and enables API/worker/web only after integrity checks succeed. The full backup
+omits environment files and secrets: protect the master key, database and S3
+credentials, CSRF key, and release selection separately. Keep the same master
+key and storage access available before starting restored application writers.

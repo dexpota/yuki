@@ -31,3 +31,16 @@ retaining a failed disposable project for inspection.
 For an already running installation, set `YUKI_ACCEPTANCE_BASE_URL` and run
 `pnpm --filter @yuki/acceptance acceptance`. This mode expects a clean database
 for the owner-setup project.
+
+## Production release gate
+
+The production release workflow runs `run-production-release.sh` on native
+`linux/amd64` and `linux/arm64` runners. It takes the candidate
+`release-images.json` and the latest supported release's manifest. The runner
+uses digest-pinned production images for Yuki services, creates a clean
+candidate installation, exercises the full browser workflow, restarts services
+and replays migrations, verifies a full backup by restoring it into clean
+volumes, then upgrades a prior supported installation with the one-shot update
+workflow. Compose logs and Playwright failure artifacts are retained for each
+platform. The candidate manifest is attached to its prerelease only after both
+platform jobs pass.

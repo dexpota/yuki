@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 describe('maintenance deployment workflow', () => {
   it('drains writers before dumping and resumes only after packaging succeeds', async () => {
     const script = await readFile(resolve('../deploy/backup.sh'), 'utf8');
+    expect(script).toContain('YUKI_COMPOSE_OVERLAY_FILE');
     expect(script).toContain('running_services=$(compose ps --status running --services)');
     expect(script.indexOf('compose stop --timeout "$drain_seconds" "$service"')).toBeLessThan(
       script.indexOf('pg_dump'),
@@ -19,6 +20,7 @@ describe('maintenance deployment workflow', () => {
 
   it('requires a clean database and verifies objects before enabling restored writes', async () => {
     const script = await readFile(resolve('../deploy/restore.sh'), 'utf8');
+    expect(script).toContain('YUKI_COMPOSE_OVERLAY_FILE');
     expect(script).toContain('Restore requires a clean database');
     expect(script.indexOf('maintenance verify')).toBeLessThan(script.indexOf('pg_restore'));
     expect(script.indexOf('pg_restore')).toBeLessThan(script.indexOf('maintenance integrity'));

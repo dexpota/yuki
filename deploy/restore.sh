@@ -17,16 +17,24 @@ fi
 
 deploy_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 compose_file=${YUKI_COMPOSE_FILE:-$deploy_dir/compose.yaml}
+compose_overlay=${YUKI_COMPOSE_OVERLAY_FILE:-}
 project_dir=$(dirname -- "$compose_file")
-case "$compose_file" in
-  */production/compose.yaml) edge_service=web ;;
-  *) edge_service=proxy ;;
-esac
+edge_service=${YUKI_COMPOSE_EDGE_SERVICE:-proxy}
+if [ -z "${YUKI_COMPOSE_EDGE_SERVICE:-}" ]; then
+  case "$compose_file" in
+    */production/compose.yaml) edge_service=web ;;
+  esac
+fi
 dump=$(mktemp "${TMPDIR:-/tmp}/yuki-restore.XXXXXX")
 drain_seconds=${YUKI_MAINTENANCE_DRAIN_SECONDS:-120}
 
 compose() {
-  set -- --project-directory "$project_dir" --file "$compose_file" "$@"
+  if [ -n "$compose_overlay" ]; then
+    set -- --project-directory "$project_dir" --file "$compose_overlay" "$@"
+  else
+    set -- --project-directory "$project_dir" "$@"
+  fi
+  set -- --file "$compose_file" "$@"
   if [ -n "${YUKI_COMPOSE_PROJECT_NAME:-}" ]; then
     set -- --project-name "$YUKI_COMPOSE_PROJECT_NAME" "$@"
   fi

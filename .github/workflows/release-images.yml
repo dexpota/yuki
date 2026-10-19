@@ -5,7 +5,7 @@ on:
     branches: [develop]
   pull_request:
   release:
-    types: [published]
+    types: [prereleased]
 
 permissions:
   contents: read
@@ -373,6 +373,8 @@ jobs:
             deploy/production/compose.yaml \
             deploy/.env.production.example \
             deploy/select-release.mjs \
+            deploy/update-release.sh \
+            deploy/smoke-compose-supervisor.mjs \
             deploy/PRODUCTION.md \
             deploy/backup.sh \
             deploy/restore.sh \
@@ -388,10 +390,80 @@ jobs:
           if-no-files-found: error
           retention-days: 90
 
+  production-acceptance:
+    name: Production install, restore, and upgrade (${{ matrix.platform }})
+    if: needs.validate.outputs.publish == 'true'
+    needs: [validate, publish]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: read
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      YUKI_EXPECTED_PRODUCTION_PLATFORM: ${{ matrix.platform }}
+      YUKI_PRODUCTION_ACCEPTANCE_ARTIFACTS: ${{ runner.temp }}/yuki-production-acceptance
+    steps:
+      - name: Check out candidate source
+        uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.release.tag_name }}
+      - name: Set up Node.js and pnpm
+        uses: actions/setup-node@v4.4.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - name: Install acceptance dependencies
+        run: |
+          corepack enable pnpm
+          pnpm install --frozen-lockfile
+          pnpm --filter @yuki/acceptance exec playwright install --with-deps chromium
+      - name: Download candidate image manifest
+        uses: actions/download-artifact@v4.3.0
+        with:
+          name: release-images-${{ needs.validate.outputs.version }}
+          path: candidate-release
+      - name: Download previous supported release manifest
+        env:
+          CANDIDATE_TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          set -euo pipefail
+          previous_tag=$(gh api "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq "[.[] | select(.draft == false and .prerelease == false and .tag_name != \"$CANDIDATE_TAG\")][0].tag_name // empty")
+          if [[ -z "$previous_tag" ]]; then
+            echo "No previous supported release is available for upgrade acceptance." >&2
+            exit 1
+          fi
+          mkdir -p previous-release
+          gh release download "$previous_tag" --repo "$GITHUB_REPOSITORY" \
+            --pattern release-images.json --dir previous-release
+          echo "Previous supported release: $previous_tag"
+      - name: Exercise production installation, restore, and previous-release upgrade
+        run: |
+          ./acceptance/run-production-release.sh \
+            candidate-release/release-images.json \
+            previous-release/release-images.json
+      - name: Retain production acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: production-acceptance-${{ matrix.platform }}
+          path: ${{ runner.temp }}/yuki-production-acceptance/
+          if-no-files-found: warn
+          retention-days: 30
+
   attach-release-manifest:
     name: Attach deployment artifacts to release
     if: needs.validate.outputs.publish == 'true'
-    needs: [validate, publish]
+    needs: [validate, publish, production-acceptance]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

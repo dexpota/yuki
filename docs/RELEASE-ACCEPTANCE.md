@@ -58,8 +58,13 @@ Image smoke checks are required on both declared platforms. Native installation
 and prior-release upgrade evidence belongs to the production acceptance gate.
 For production releases using the v2 image manifest, the gate additionally
 requires the supervisor image and a real Compose-managed supervisor-to-processor
-smoke check. The historical three-image v1 release is not deployable with the
-production Compose stack.
+smoke check. The GitHub release workflow runs the production gate on native
+AMD64 and ARM64 runners before attaching the deployment manifest or promoting
+the prerelease. It clean-installs candidate images, restarts services and
+replays migrations, restores a verified full backup into clean volumes, and
+upgrades a clean installation of the latest supported release. Failure logs
+and Playwright artifacts are retained by platform. The historical three-image
+v1 release is not deployable with the production Compose stack.
 
 Run the complete repository verification:
 

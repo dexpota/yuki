@@ -3,15 +3,17 @@ import { type FormEvent, useEffect, useState } from 'react';
 
 import { ApiError } from '../../shared/api/http.js';
 import {
+  getInstallationSettings,
   getNotificationDeliveries,
   getNotificationWebhookConfiguration,
-  getInstallationSettings,
+  getSystemInformation,
   type InstallationSettings,
   installationSettingsQueryKey,
   notificationDeliveriesQueryKey,
   notificationWebhookQueryKey,
-  updateNotificationWebhookConfiguration,
+  systemInformationQueryKey,
   updateInstallationSettings,
+  updateNotificationWebhookConfiguration,
 } from './api.js';
 import './settings.css';
 
@@ -57,6 +59,7 @@ export function InstallationSettingsPage({ csrfToken }: { readonly csrfToken: st
         <h1>Settings</h1>
         <p>Resource limits and retention rules for this Yuki installation.</p>
       </header>
+      <SystemInformationPanel />
       <form onSubmit={submit}>
         <SettingsSection title="Limits" description="Guardrails apply before files are processed.">
           <NumberField
@@ -153,6 +156,84 @@ export function InstallationSettingsPage({ csrfToken }: { readonly csrfToken: st
       </form>
       <NotificationWebhookSettings csrfToken={csrfToken} />
     </main>
+  );
+}
+
+function SystemInformationPanel() {
+  const information = useQuery({
+    queryKey: systemInformationQueryKey,
+    queryFn: getSystemInformation,
+  });
+  if (information.isPending)
+    return (
+      <section className="settings-card system-information" aria-busy="true">
+        <h2>Yuki version</h2>
+        <p>Loading installed version…</p>
+      </section>
+    );
+  if (information.isError)
+    return (
+      <section className="settings-card system-information" role="alert">
+        <h2>Yuki version</h2>
+        <p>Installed version information is unavailable.</p>
+      </section>
+    );
+
+  const { version, revision, release } = information.data;
+  return (
+    <section className="settings-card system-information" aria-label="Yuki version information">
+      <h2>Yuki version</h2>
+      <dl>
+        <div>
+          <dt>Installed</dt>
+          <dd>{version}</dd>
+        </div>
+        <div>
+          <dt>Source revision</dt>
+          <dd>{revision}</dd>
+        </div>
+      </dl>
+      {release.status === 'current' ? <p role="status">This installation is up to date.</p> : null}
+      {release.status === 'update-available' ? (
+        <p role="status">Yuki {release.latestVersion} is available.</p>
+      ) : null}
+      {release.status === 'unsupported' ? (
+        <p>This build is not a supported release. Release availability cannot be checked.</p>
+      ) : null}
+      {release.status === 'check-unavailable' ? (
+        <p role="status">Release availability could not be checked. Yuki remains operational.</p>
+      ) : null}
+      {release.releaseNotesUrl || release.updateGuideUrl ? (
+        <p className="system-information-links">
+          {release.releaseNotesUrl ? (
+            <a href={release.releaseNotesUrl} target="_blank" rel="noreferrer">
+              Release notes
+            </a>
+          ) : null}
+          {release.updateGuideUrl ? (
+            <a href={release.updateGuideUrl} target="_blank" rel="noreferrer">
+              Update instructions
+            </a>
+          ) : null}
+        </p>
+      ) : release.status === 'unsupported' || release.status === 'check-unavailable' ? (
+        <p>
+          {release.status === 'check-unavailable' ? (
+            <a href="https://github.com/dexpota/yuki/releases" target="_blank" rel="noreferrer">
+              Release notes
+            </a>
+          ) : null}
+          {release.status === 'check-unavailable' ? ' · ' : null}
+          <a
+            href="https://github.com/dexpota/yuki/blob/develop/deploy/PRODUCTION.md#apply-a-release-update"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Production update instructions
+          </a>
+        </p>
+      ) : null}
+    </section>
   );
 }
 

@@ -83,23 +83,34 @@ test('imports, versions, previews, exports, and re-imports a multipart model', a
   await page.getByRole('link', { name: 'View imported model' }).click({ timeout: 60_000 });
   await expect(page.getByText('Larger release geometry')).toBeVisible();
   const originalDownload = page.getByRole('link', { name: 'release-package.zip' });
-  const originalResponse = await page.request.get(await requiredHref(originalDownload));
-  expect(originalResponse.ok()).toBe(true);
-  expect(Buffer.compare(await originalResponse.body(), firstPackage)).toBe(0);
+  const originalHref = await requiredHref(originalDownload);
+  const originalResponse = await page.evaluate(async (href) => {
+    const response = await fetch(href);
+    return {
+      ok: response.ok,
+      status: response.status,
+      bytes: Array.from(new Uint8Array(await response.arrayBuffer())),
+    };
+  }, originalHref);
+  expect(
+    originalResponse.ok,
+    `Original asset download returned HTTP ${originalResponse.status}.`,
+  ).toBe(true);
+  expect(Buffer.compare(Buffer.from(originalResponse.bytes), firstPackage)).toBe(0);
 
   await page.getByRole('button', { name: 'Restore as current' }).last().click();
   await expect(page.getByText('Current', { exact: true }).last()).toBeVisible();
   await page.getByRole('button', { name: 'Prepare export' }).click();
   const exportDownload = page.getByRole('link', { name: 'Download Yuki package' });
   await expect(exportDownload).toBeVisible({ timeout: 60_000 });
-  const exportResponse = await page.request.get(await requiredHref(exportDownload));
-  expect(exportResponse.ok()).toBe(true);
+  const exportResponse = await downloadThroughBrowser(page, await requiredHref(exportDownload));
+  expect(exportResponse.ok, `Model export returned HTTP ${exportResponse.status}.`).toBe(true);
 
   await page.getByRole('link', { name: 'Import', exact: true }).click();
   await page.getByLabel('Yuki export package').setInputFiles({
     name: 'release-assembly.yuki.zip',
     mimeType: 'application/vnd.yuki.model+zip',
-    buffer: await exportResponse.body(),
+    buffer: exportResponse.body,
   });
   await page.getByRole('button', { name: 'Re-import package' }).click();
   await page.getByRole('link', { name: 'View re-imported model' }).click({ timeout: 60_000 });
@@ -236,4 +247,19 @@ async function requiredHref(locator: import('@playwright/test').Locator): Promis
   const href = await locator.getAttribute('href');
   if (!href) throw new Error('Expected a download link');
   return href;
+}
+
+async function downloadThroughBrowser(
+  page: import('@playwright/test').Page,
+  href: string,
+): Promise<{ readonly ok: boolean; readonly status: number; readonly body: Buffer }> {
+  const response = await page.evaluate(async (url) => {
+    const result = await fetch(url);
+    return {
+      ok: result.ok,
+      status: result.status,
+      bytes: Array.from(new Uint8Array(await result.arrayBuffer())),
+    };
+  }, href);
+  return { ok: response.ok, status: response.status, body: Buffer.from(response.bytes) };
 }

@@ -21,10 +21,12 @@ has no deployment manifest or bundle and is not a supported production install.
 
 ## Release and tag policy
 
-Publishing starts when a GitHub release with an exact `MAJOR.MINOR.PATCH` tag
-is published. Release `1.2.3` therefore publishes image tag `:1.2.3`.
-Pre-release tags, `latest`, moving major tags, and moving minor tags are not
-published.
+Publishing starts when a GitHub prerelease is created with an exact
+`MAJOR.MINOR.PATCH` tag. Release candidate `1.2.3` therefore publishes image
+tag `:1.2.3`. `latest`, moving major tags, and moving minor tags are not
+published. The prerelease is not promoted to a supported release until the
+production installation, restore, and previous-release upgrade gate passes on
+both supported architectures.
 
 Exact image tags are immutable. The workflow checks that all four tags are
 absent before building and refuses to replace an existing tag. If publication
@@ -37,8 +39,12 @@ Each image supports `linux/amd64` and `linux/arm64`. The release workflow runs
 the image smoke suite on native GitHub-hosted runners for both architectures
 before publication. It also builds and pushes each platform on its matching
 native runner, then combines the resulting digests into the immutable release
-tags. The ARM64 processor build does not run under QEMU. Native installation
-and upgrade acceptance remains a separate release gate.
+tags. The ARM64 processor build does not run under QEMU. After assembling the
+candidate manifest, the workflow pulls those production image digests on native
+AMD64 and ARM64 runners and verifies clean installation, service restart,
+backup/restore, and upgrade from the latest supported release. The release
+manifest and deployment bundle are attached only after both acceptance jobs
+pass. Then promote the prerelease to a supported GitHub release.
 
 The four GHCR packages must be configured as public packages before the first
 supported release. Registry visibility is an explicit release preflight because
@@ -59,10 +65,12 @@ The workflow requests BuildKit SBOM and maximum-mode provenance attestations
 for each multi-platform image. Deployments should resolve the selected tag to
 the index digest and pin the processor by digest at its isolation boundary.
 
-Every new release receives `release-images.json` and
-`yuki-deployment-v2.tar.gz` as workflow artifacts and GitHub release assets.
-The deployment archive contains Compose, its secret-free template, the release
-selector, and operational documentation without application source. The v2
+Every candidate receives `release-images.json` and
+`yuki-deployment-v2.tar.gz` as workflow artifacts. Both become GitHub release
+assets only after the production acceptance gate passes. The deployment archive
+contains Compose, its secret-free template, the release selector, one-shot
+update and supervisor smoke helpers, and operational documentation without
+application source. The v2
 manifest shape is defined by
 `docs/release-images-v2.schema.json`; v1 remains the historical three-image
 contract. The manifest records the release identity, exact

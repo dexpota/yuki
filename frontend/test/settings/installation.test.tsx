@@ -29,6 +29,7 @@ describe('installation settings page', () => {
     const settings = fixture();
     const fetch = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
       const url = String(input);
+      if (url.includes('/system/information')) return Response.json(systemInformationFixture());
       if (url.includes('/notifications/webhook-configuration')) {
         return Response.json(
           init?.method === 'PATCH'
@@ -52,6 +53,12 @@ describe('installation settings page', () => {
       </QueryClientProvider>,
     );
     expect(await screen.findByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+    expect(await screen.findByText('This installation is up to date.')).toBeInTheDocument();
+    expect(screen.getByText('0.2.1')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Update instructions' })).toHaveAttribute(
+      'href',
+      'https://github.com/dexpota/yuki/blob/0.2.1/deploy/PRODUCTION.md#apply-a-release-update',
+    );
     expect(
       await screen.findByRole('heading', { name: 'External notifications' }),
     ).toBeInTheDocument();
@@ -111,6 +118,94 @@ describe('installation settings page', () => {
     });
     expect(await screen.findByText('Webhook settings saved.')).toBeInTheDocument();
   });
+
+  it('shows update availability and remains useful when release checks are unavailable', async () => {
+    const settings = fixture();
+    const fetch = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes('/system/information'))
+        return Response.json({
+          version: '0.2.0',
+          revision: 'a'.repeat(40),
+          release: {
+            status: 'update-available',
+            latestVersion: '0.2.1',
+            releaseNotesUrl: 'https://github.com/dexpota/yuki/releases/tag/0.2.1',
+            updateGuideUrl:
+              'https://github.com/dexpota/yuki/blob/0.2.1/deploy/PRODUCTION.md#apply-a-release-update',
+          },
+        });
+      if (url.includes('/notifications/webhook-configuration'))
+        return Response.json(webhookFixture());
+      if (url.includes('/notifications/deliveries')) return Response.json({ deliveries: [] });
+      return Response.json(settings);
+    });
+    vi.stubGlobal('fetch', fetch);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const view = () =>
+      render(
+        <QueryClientProvider client={client}>
+          <InstallationSettingsPage csrfToken="csrf" />
+        </QueryClientProvider>,
+      );
+
+    view();
+    expect(await screen.findByText('Yuki 0.2.1 is available.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Release notes' })).toHaveAttribute(
+      'href',
+      'https://github.com/dexpota/yuki/releases/tag/0.2.1',
+    );
+
+    cleanup();
+    client.clear();
+    fetch.mockImplementation(async (input: string | URL | Request) => {
+      if (String(input).includes('/system/information'))
+        return Response.json({
+          version: '0.2.1',
+          revision: 'a'.repeat(40),
+          release: {
+            status: 'check-unavailable',
+            latestVersion: null,
+            releaseNotesUrl: null,
+            updateGuideUrl: null,
+          },
+        });
+      if (String(input).includes('/notifications/webhook-configuration'))
+        return Response.json(webhookFixture());
+      if (String(input).includes('/notifications/deliveries'))
+        return Response.json({ deliveries: [] });
+      return Response.json(settings);
+    });
+    view();
+    expect(await screen.findByText(/Yuki remains operational/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Production update instructions' })).toHaveAttribute(
+      'href',
+      'https://github.com/dexpota/yuki/blob/develop/deploy/PRODUCTION.md#apply-a-release-update',
+    );
+
+    cleanup();
+    client.clear();
+    fetch.mockImplementation(async (input: string | URL | Request) => {
+      if (String(input).includes('/system/information'))
+        return Response.json({
+          version: '0.0.0-development',
+          revision: 'unknown',
+          release: {
+            status: 'unsupported',
+            latestVersion: null,
+            releaseNotesUrl: null,
+            updateGuideUrl: null,
+          },
+        });
+      if (String(input).includes('/notifications/webhook-configuration'))
+        return Response.json(webhookFixture());
+      if (String(input).includes('/notifications/deliveries'))
+        return Response.json({ deliveries: [] });
+      return Response.json(settings);
+    });
+    view();
+    expect(await screen.findByText(/not a supported release/)).toBeInTheDocument();
+  });
 });
 function fixture() {
   return {
@@ -146,5 +241,19 @@ function webhookFixture() {
     bearerTokenConfigured: true,
     version: 1,
     updatedAt: '2026-07-29T09:00:00.000Z',
+  } as const;
+}
+
+function systemInformationFixture() {
+  return {
+    version: '0.2.1',
+    revision: 'f'.repeat(40),
+    release: {
+      status: 'current',
+      latestVersion: '0.2.1',
+      releaseNotesUrl: 'https://github.com/dexpota/yuki/releases/tag/0.2.1',
+      updateGuideUrl:
+        'https://github.com/dexpota/yuki/blob/0.2.1/deploy/PRODUCTION.md#apply-a-release-update',
+    },
   } as const;
 }

@@ -11,3 +11,8 @@ export {
   SettingsConflictError,
   type UpdateInstallationSettings,
 } from './service.js';
+export {
+  type ReleaseAvailability,
+  type SystemInformation,
+  SystemInformationService,
+} from './system-information.js';

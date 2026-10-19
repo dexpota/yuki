@@ -73,7 +73,8 @@ Create a full backup from a running Compose installation:
 The script gracefully stops the proxy, API, and worker, allowing in-flight work
 to drain for up to `YUKI_MAINTENANCE_DRAIN_SECONDS` (120 seconds by default).
 It then creates a PostgreSQL custom dump, verifies every referenced object,
-streams the final package with mode `0600`, and resumes services. A failure also
+streams the final package with mode `0600`, verifies the completed package,
+publishes it at the requested destination, and resumes services. A failure also
 attempts to resume the stopped services and removes the incomplete package.
 Keep enough free space for one database dump plus the final backup.
 Set `YUKI_COMPOSE_ENV_FILE` when the deployment uses an env file other than

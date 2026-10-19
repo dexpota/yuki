@@ -27,6 +27,17 @@ export interface InstallationSettings {
   readonly updatedAt: string | null;
 }
 
+export interface SystemInformation {
+  readonly version: string;
+  readonly revision: string;
+  readonly release: {
+    readonly status: 'current' | 'update-available' | 'unsupported' | 'check-unavailable';
+    readonly latestVersion: string | null;
+    readonly releaseNotesUrl: string | null;
+    readonly updateGuideUrl: string | null;
+  };
+}
+
 export interface NotificationWebhookConfiguration {
   readonly mode: 'webhook';
   readonly enabled: boolean;
@@ -56,6 +67,12 @@ export const installationSettingsQueryKey = ['settings', 'installation'] as cons
 
 export function getInstallationSettings(): Promise<InstallationSettings> {
   return apiRequest('/api/v1/settings/installation');
+}
+
+export const systemInformationQueryKey = ['system', 'information'] as const;
+
+export function getSystemInformation(): Promise<SystemInformation> {
+  return apiRequest('/api/v1/system/information');
 }
 
 export function updateInstallationSettings(

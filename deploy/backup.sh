@@ -17,11 +17,14 @@ fi
 
 deploy_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 compose_file=${YUKI_COMPOSE_FILE:-$deploy_dir/compose.yaml}
+compose_overlay=${YUKI_COMPOSE_OVERLAY_FILE:-}
 project_dir=$(dirname -- "$compose_file")
-case "$compose_file" in
-  */production/compose.yaml) edge_service=web ;;
-  *) edge_service=proxy ;;
-esac
+edge_service=${YUKI_COMPOSE_EDGE_SERVICE:-proxy}
+if [ -z "${YUKI_COMPOSE_EDGE_SERVICE:-}" ]; then
+  case "$compose_file" in
+    */production/compose.yaml) edge_service=web ;;
+  esac
+fi
 mkdir -p -- "$(dirname -- "$output")"
 dump=$(mktemp "${TMPDIR:-/tmp}/yuki-database.XXXXXX")
 partial=$(mktemp "${output}.partial.XXXXXX")
@@ -30,7 +33,12 @@ writers_stopped=0
 running_services=
 
 compose() {
-  set -- --project-directory "$project_dir" --file "$compose_file" "$@"
+  if [ -n "$compose_overlay" ]; then
+    set -- --project-directory "$project_dir" --file "$compose_overlay" "$@"
+  else
+    set -- --project-directory "$project_dir" "$@"
+  fi
+  set -- --file "$compose_file" "$@"
   if [ -n "${YUKI_COMPOSE_PROJECT_NAME:-}" ]; then
     set -- --project-name "$YUKI_COMPOSE_PROJECT_NAME" "$@"
   fi
@@ -97,6 +105,8 @@ compose run --rm --no-deps -T \
   --volume "$dump:/tmp/database.dump:ro" \
   maintenance create /tmp/database.dump >"$partial"
 chmod 0600 "$partial"
+echo "Verifying completed backup package..." >&2
+compose run --rm --no-deps -T maintenance verify <"$partial"
 mv -- "$partial" "$output"
 
 echo "Backup completed; resuming services..." >&2
