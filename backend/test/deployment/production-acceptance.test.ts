@@ -18,7 +18,7 @@ describe('production release acceptance gate', () => {
     expect(workflow).toContain('runner: ubuntu-24.04-arm');
     expect(workflow).toContain('./acceptance/run-production-release.sh');
     expect(workflow).toContain('needs: [validate, publish, production-acceptance]');
-    expect(workflow).toContain('production-acceptance-' + '$' + '{{ matrix.platform }}');
+    expect(workflow).toContain('production-acceptance-' + '$' + '{{ matrix.arch }}');
 
     expect(runner).toContain('deploy/backup.sh');
     expect(runner).toContain('deploy/restore.sh');
