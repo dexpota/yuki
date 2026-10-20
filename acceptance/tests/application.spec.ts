@@ -62,7 +62,9 @@ test('imports, versions, previews, exports, and re-imports a multipart model', a
   await page.getByRole('button', { name: 'Save tags' }).click();
   const previewButtons = page.getByRole('button', { name: 'Generate preview' });
   await expect(previewButtons).toHaveCount(2);
-  for (const button of await previewButtons.all()) await button.click();
+  await previewButtons.first().click();
+  await expect(previewButtons).toHaveCount(1);
+  await previewButtons.first().click();
   await expect(page.getByLabel('Interactive model preview')).toBeVisible({ timeout: 60_000 });
   await expect(page.getByLabel('Read-only G-code layer preview')).toBeVisible({ timeout: 60_000 });
 
