@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 
 import { ModelPrintHistory } from '../../printing/history/index.js';
+import { addToPrintPlan, printPlanQueryKey } from '../../printing/plan/index.js';
 import { useSession } from '../../settings/identity/session.js';
 import {
   createCollection,
@@ -465,6 +466,11 @@ function CollectionsEditor({ detail, csrfToken, onSuccess }: EditorProps) {
 }
 
 function VersionHistory({ detail, csrfToken, onSuccess }: EditorProps) {
+  const queryClient = useQueryClient();
+  const addToPlan = useMutation({
+    mutationFn: (versionId: string) => addToPrintPlan(detail.model.id, versionId, csrfToken),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: printPlanQueryKey }),
+  });
   const mutation = useMutation({
     mutationFn: (versionId: string) => restoreVersion(detail.model.id, versionId, csrfToken),
     onSuccess,
@@ -492,6 +498,14 @@ function VersionHistory({ detail, csrfToken, onSuccess }: EditorProps) {
                 <small>{formatDate(version.created_at)}</small>
               </div>
               {version.change_note ? <p>{version.change_note}</p> : null}
+              <button
+                className="secondary-button"
+                type="button"
+                disabled={addToPlan.isPending}
+                onClick={() => addToPlan.mutate(version.id)}
+              >
+                Add to print plan
+              </button>
               {assets.length > 0 ? (
                 <ul className="asset-list">
                   {assets.map((asset) => (
@@ -523,6 +537,7 @@ function VersionHistory({ detail, csrfToken, onSuccess }: EditorProps) {
           );
         })}
       </ol>
+      <MutationError mutations={[addToPlan]} />
       <MutationError mutations={[mutation]} />
     </section>
   );

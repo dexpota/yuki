@@ -3,13 +3,13 @@ import { pathToFileURL } from 'node:url';
 import { sql } from 'kysely';
 
 import {
-  type CatalogueDatabaseSchema,
-  type CatalogueSearchDatabaseSchema,
   CatalogueAssetDownloads,
+  type CatalogueDatabaseSchema,
   type CataloguePortabilityDatabaseSchema,
   CataloguePortabilityOperations,
   CataloguePreviewOperations,
   CataloguePreviewService,
+  type CatalogueSearchDatabaseSchema,
   type PreviewDatabaseSchema,
   registerCatalogueFeature,
   registerCataloguePortabilityFeature,
@@ -60,29 +60,32 @@ import {
   type StorageConfiguration,
 } from './platform/storage/index.js';
 import {
+  ExternalNotificationService,
+  type NotificationDatabaseSchema,
+  NotificationService,
+  NotificationWebhookDestinationPolicy,
+  OctoPrintMonitoringGateway,
   type PrinterControlDatabaseSchema,
   PrinterControlService,
-  OctoPrintMonitoringGateway,
   type PrinterDatabaseSchema,
   PrinterDestinationPolicy,
   type PrinterMonitoringDatabaseSchema,
   PrinterMonitoringService,
-  type NotificationDatabaseSchema,
-  ExternalNotificationService,
-  NotificationService,
-  NotificationWebhookDestinationPolicy,
   type PrintHistoryDatabaseSchema,
   PrintHistoryService,
+  type PrintPlanningDatabaseSchema,
+  PrintPlanningService,
   type PrintStartDatabaseSchema,
   PrintStartService,
   type QueueDatabaseSchema,
   QueueService,
-  registerPrinterFeature,
-  registerPrinterEventsFeature,
-  registerPrinterControlFeature,
-  registerPrinterMonitoringFeature,
   registerNotificationFeature,
+  registerPrinterControlFeature,
+  registerPrinterEventsFeature,
+  registerPrinterFeature,
+  registerPrinterMonitoringFeature,
   registerPrintHistoryFeature,
+  registerPrintPlanningFeature,
   registerPrintStartFeature,
   registerQueueFeature,
 } from './printing/index.js';
@@ -104,6 +107,7 @@ export type ApiDatabaseSchema = IdentityDatabaseSchema &
   PreviewDatabaseSchema &
   PrinterMonitoringDatabaseSchema &
   PrintHistoryDatabaseSchema &
+  PrintPlanningDatabaseSchema &
   QueueDatabaseSchema &
   PrinterControlDatabaseSchema &
   PrintStartDatabaseSchema &
@@ -262,6 +266,12 @@ export async function createApiApplication(
     registerQueueFeature(application, {
       identity,
       service: new QueueService(database as unknown as Database<QueueDatabaseSchema>),
+    });
+    registerPrintPlanningFeature(application, {
+      identity,
+      service: new PrintPlanningService(
+        database as unknown as Database<PrintPlanningDatabaseSchema & CatalogueDatabaseSchema>,
+      ),
     });
     const printHistory = new PrintHistoryService(
       database as unknown as Database<PrintHistoryDatabaseSchema>,

@@ -58,6 +58,10 @@ export function AppShell() {
                 <span className="sidebar-symbol symbol-printers" aria-hidden="true" />
                 Printers
               </NavLink>
+              <NavLink className="sidebar-link" to="/print-plan">
+                <span className="sidebar-symbol symbol-plan" aria-hidden="true" />
+                Print plan
+              </NavLink>
               <NavLink className="sidebar-link" to="/history">
                 <span className="sidebar-symbol symbol-history" aria-hidden="true" />
                 Print history

@@ -192,6 +192,8 @@ describe('catalogue pages', () => {
     });
     const fetch = vi.fn(async (input: string | URL | Request, _init?: RequestInit) => {
       const url = String(input);
+      if (url.endsWith('/printing/plan') && _init?.method === 'POST')
+        return Response.json({ id: 'plan-entry-1' }, { status: 201 });
       if (url.includes('/printing/print-attempts')) return Response.json({ attempts: [] });
       if (url.endsWith('/printing/printers')) return Response.json([]);
       if (url.endsWith('/collections')) return Response.json([]);
@@ -216,6 +218,18 @@ describe('catalogue pages', () => {
     expect(screen.getByRole('link', { name: 'benchy-v1.stl' })).toHaveAttribute(
       'href',
       '/api/v1/catalogue/assets/asset-v1/download',
+    );
+    const addToPlanButton = screen.getAllByRole('button', { name: 'Add to print plan' }).at(0);
+    if (!addToPlanButton) throw new Error('Expected an Add to print plan button.');
+    fireEvent.click(addToPlanButton);
+    await waitFor(() =>
+      expect(
+        fetch.mock.calls.some(([url, init]) => {
+          if (!String(url).endsWith('/printing/plan') || init?.method !== 'POST') return false;
+          const body = JSON.parse(String(init.body));
+          return body.modelId === 'model-1' && body.versionId === 'version-2';
+        }),
+      ).toBe(true),
     );
     fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
       target: { value: 'Better Benchy' },
