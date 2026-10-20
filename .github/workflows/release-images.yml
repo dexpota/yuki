@@ -423,7 +423,6 @@ jobs:
         uses: actions/setup-node@v4.4.0
         with:
           node-version-file: .nvmrc
-          cache: pnpm
       - name: Install acceptance dependencies
         run: |
           corepack enable pnpm
