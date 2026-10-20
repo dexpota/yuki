@@ -224,6 +224,9 @@ If compatibility cannot be established, the application blocks the job by defaul
 
 ### 5.9 Print queue and remote start
 
+- The owner can keep an ordered, persistent print planning list independent of any printer.
+- Each planned print references an exact model version. The owner can add it to a selected printer's operational queue, choosing a G-code asset from that version; the planning entry remains in the list.
+- If a planned print's model or version is no longer available, the list marks the entry unavailable and retains it until the owner removes it.
 - Each printer has an ordered queue managed by the application.
 - A queued job identifies one exact G-code asset and one target printer.
 - The user can add, remove, and reorder jobs that have not started.

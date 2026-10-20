@@ -43,6 +43,7 @@ This plan decomposes the MVP into tasks organized by product feature. Dependenci
 | P08 | Complete | Printer configuration, stale-aware monitoring, compatibility queues, confirmed starts/controls, same-origin webcam proxying, and PostgreSQL-backed SSE invalidation are composed and verified |
 | P09 | Complete | Immutable snapshots and append-only audit revisions, manual/external attempts, terminal reconciliation, outcome corrections, notes, reference-safe photos, model projections, failed-history filtering, and APIs passed PostgreSQL tests |
 | P10 | Complete | Model pages now show print projections and chronological attempts with exact-version manual entry; global printer-filtered history supports outcome corrections, notes, and result-photo upload |
+| P11 | Complete | GitHub issue #14 implemented: persistent exact-version planning, order/removal, unavailable snapshots, and printer assignment through the existing queue; PostgreSQL integration passes |
 | N01 | Complete | Terminal print and active-job disconnect transitions atomically create owner-scoped in-app notifications and durable external-delivery jobs; read-state APIs and PostgreSQL rollback/deduplication tests pass |
 | N02 | Complete | Generic HTTPS webhooks now have encrypted owner configuration, public-address and DNS-pinned delivery controls, durable bounded retries, sanitized diagnostics, worker/API composition, and an installation settings UI |
 | N03 | Complete | The authenticated shell now shows a five-second live unread badge; the notification center supports unread filtering, per-item read state, mark-all-read, event context links, and tested error/empty states |
@@ -152,6 +153,7 @@ The headings below are planning groups, not a request to create another director
 | P08 | Implement printer configuration/status, stale-data indicators, queues, compatibility results, readiness confirmation, monitoring, webcam, and controls UI using REST/SSE. | FE, BE | F04, F06, P02, P05 | O05 |
 | P09 | Implement immutable print history, manual attempts, outcome corrections, notes, photographs, model projections, and history APIs. | BE, DB | F06, F08, C02, P06 | C06, P10, O04, O05 |
 | P10 | Implement model/printer history UI, manual attempt recording, outcome correction, notes, and photograph upload. | FE | F04, P09 | O05 |
+| P11 | Implement an owner-scoped, ordered print planning list independent of printers; retain entries after adding the selected version's G-code asset to a printer queue, and clearly mark unavailable model/version references. | BE, DB, FE | C04, P05, P08 | — |
 
 ### 2.6 Notifications
 

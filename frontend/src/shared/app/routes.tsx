@@ -3,6 +3,7 @@ import { CataloguePage, ModelPage } from '../../catalogue/index.js';
 import { LocalImportPage } from '../../importing/local/index.js';
 import { PrintHistoryPage } from '../../printing/history/index.js';
 import { NotificationsPage } from '../../printing/notifications/index.js';
+import { PrintPlanPage } from '../../printing/plan/index.js';
 import { PrinterDetailPage, PrintersPage } from '../../printing/printers/index.js';
 import { SessionGate, useSession } from '../../settings/identity/session.js';
 import { InstallationSettingsPage } from '../../settings/installation/index.js';
@@ -59,6 +60,7 @@ export const routes: RouteObject[] = [
           { path: 'catalogue/models/:modelId', element: <ModelPage /> },
           { path: 'import', element: <LocalImportRoute /> },
           { path: 'history', element: <PrintHistoryPage /> },
+          { path: 'print-plan', element: <PrintPlanPage /> },
           { path: 'notifications', element: <NotificationsPage /> },
           { path: 'printers', element: <PrintersPage /> },
           { path: 'printers/:printerId', element: <PrinterDetailPage /> },

@@ -218,13 +218,16 @@ The portable export contains `manifest.json` with a documented schema/version, e
 ### 5.3 Printing
 
 ```text
+Owner 1---* PlannedPrint
 Printer 1---* PrintJob 1---0..1 PrintAttempt
    |             |                    |
    |             ` exact G-code Asset |
    ` profile snapshot                 ` Model + ModelVersion + Asset + Printer snapshots
+PlannedPrint --- ModelVersion (stored identifiers with retained display snapshot)
 ```
 
 - `Printer` stores display data, URL, encrypted credential, enabled status, last observation, and a versioned build/compatibility profile.
+- `PlannedPrint` is an owner-scoped, ordered intention to print an exact model version, independent of printer assignment. It retains a display snapshot and becomes unavailable when its referenced model/version no longer exists. Adding it to a printer queue selects a G-code asset from that version and creates an ordinary `PrintJob`; the planned entry remains.
 - `PrintJob` is the durable per-printer queue item. It points to exactly one G-code asset and stores position, compatibility result/snapshot, override decision, and operational state.
 - `PrintAttempt` is created atomically when start is accepted. It retains immutable snapshots needed to interpret history even if a printer or model is later renamed or deleted.
 - `PrinterObservation` stores the latest normalized state and a bounded history useful for recovery; high-frequency telemetry is not retained indefinitely.
@@ -315,6 +318,7 @@ The external contract is versioned under `/api/v1`. REST resources include:
 - `/models`, `/models/{id}/versions`, `/assets`, `/imports`, `/exports`;
 - `/tags`, `/collections`, `/search`;
 - `/printers`, `/printers/{id}/observations`, `/printers/{id}/queue`;
+- `/printing/plan` for owner-scoped planned prints, ordering, and removal;
 - `/print-jobs`, `/print-attempts`, `/notifications`;
 - `/settings`, `/session`, and `/events` for SSE.
 
